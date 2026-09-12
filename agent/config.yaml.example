@@ -1,0 +1,84 @@
+# Конфигурация агента мониторинга.
+# Скопируйте этот файл в config.yaml и отредактируйте под свою сеть.
+
+# --- Бэкенд (сервер) ---
+backend:
+  url: "http://192.168.1.100:8000"   # базовый адрес FastAPI-сервера
+  token: "change-me-shared-secret"    # значение заголовка X-Agent-Token
+  timeout: 10                          # таймаут HTTP-запросов к бэкенду, сек
+  retry_attempts: 3                    # кол-во попыток отправить heartbeat
+  retry_delay: 5                        # задержка между попытками, сек
+  buffer_max: 500                       # макс. отложенных сообщений при недоступном бэкенде
+
+# --- Периодичность ---
+check_interval: 30                      # проверять сервисы каждые N секунд
+
+# --- Инвентаризация Windows-хоста ---
+# Клиент сам собирает данные локально и отправляет только метаданные.
+inventory:
+  enabled: true
+  host_id: "office-pc-01"
+  # Укажите один или несколько каталогов; подпапки сканируются автоматически.
+  certificate_roots:
+    - "C:\\Certificates"
+  windows_services:
+    - "Spooler"
+    - "W32Time"
+discovery:
+  enabled: true
+  # Клиент слушает TCP 19443 только для подписанного запроса обнаружения.
+
+# --- Таймауты проверок ---
+check_timeout: 5                         # таймаут tcp/http/icmp проверок, сек
+
+# --- Логирование ---
+logging:
+  level: "INFO"                          # DEBUG | INFO | WARNING | ERROR
+  file: "agent.log"                      # путь к файлу лога; пусто/"console" -> stdout
+
+# --- Список проверяемых сервисов ---
+# type: tcp | http | https | icmp | disk | cpu | memory | network
+# Поле name уникально идентифицирует сервис на сервере (агент сам создаст его в БД,
+# если оно отсутствует).
+services:
+  - name: "DB-Server"
+    type: "tcp"
+    host: "192.168.1.10"
+    port: 5432
+    description: "PostgreSQL Database"
+
+  - name: "Web-App"
+    type: "http"
+    url: "http://192.168.1.11/health"
+    expected_status: 200        # опционально: ожидаемый HTTP-код
+    expected_body: "ok"         # опционально: подстрока, которую ждём в теле
+    description: "Web Application Health Check"
+
+  - name: "Gateway"
+    type: "icmp"
+    host: "192.168.1.1"
+    count: 3                    # количество эхо-запросов
+    description: "Network Gateway"
+
+  # --- Системные метрики (локальный хост) ---
+  - name: "LocalHost-Disk-C"
+    type: "disk"
+    path: "C:\\"               # Windows: "C:\\", Linux: "/"
+    threshold: 10               # DOWN если свободно < 10%
+    description: "Диск C: свободное место"
+
+  - name: "LocalHost-CPU"
+    type: "cpu"
+    threshold: 90               # DOWN если загрузка > 90%
+    interval: 1                 # интервал измерения psutil.cpu_percent
+    description: "Загрузка процессора"
+
+  - name: "LocalHost-Memory"
+    type: "memory"
+    threshold: 85               # DOWN если использование ОЗУ > 85%
+    description: "Использование оперативной памяти"
+
+  - name: "LocalHost-Network"
+    type: "network"
+    interval: 1                 # интервал измерения сетевого трафика
+    description: "Сетевой трафик (Mbps)"

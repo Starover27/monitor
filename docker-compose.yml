@@ -1,0 +1,70 @@
+services:
+  # --- Backend (FastAPI) ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: monitor-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/monitoring.db
+      - DEBUG=false
+      - ALERT_CONSECUTIVE_FAILURES=2
+      - ALERT_CHECK_INTERVAL_SECONDS=30
+      - NOTIFICATION_CHANNEL=none
+      # Для продакшена настройте:
+      # - TELEGRAM_BOT_TOKEN=your_token
+      # - TELEGRAM_CHAT_ID=your_chat_id
+      # - WEBHOOK_URL=your_webhook
+    volumes:
+      # Монтируем только каталог с БД, чтобы не перекрывать код образа
+      - backend-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --- Frontend (React + Nginx) ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: monitor-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --- Agent (опциональный, профиль agent) ---
+  # Запуск: docker-compose --profile agent up agent
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: monitor-agent
+    profiles:
+      - agent
+    volumes:
+      # Монтируйте свой config.yaml:
+      - ./agent/config.yaml:/app/config.yaml:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+volumes:
+  backend-data:
+
+networks:
+  default:
+    name: monitor-network

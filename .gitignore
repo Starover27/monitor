@@ -1,0 +1,31 @@
+# --- Виртуальные окружения ---
+.venv/
+.venv-win/
+agent/.build-venv/
+
+# --- Зависимости и сборка фронтенда ---
+node_modules/
+frontend/dist/
+agent/build/
+agent/dist/
+
+# --- Кэши Python ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Секреты и локальные конфиги ---
+.env
+backend/.env
+agent/config.yaml
+agent/config.local.yaml
+*_token*.txt
+
+# --- Базы данных ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Логи и артефакты сборки ---
+*.log
+*.spec.bak
