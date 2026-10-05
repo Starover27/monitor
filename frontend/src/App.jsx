@@ -16,6 +16,7 @@ import { ServiceDetailsPage } from './components/ServiceDetails';
 import Inventory from './pages/Inventory';
 import Alerts from './pages/Alerts';
 import PhoneBook from './pages/PhoneBook';
+import MedregLaunch from './pages/MedregLaunch';
 import HelpdeskEmployee from './pages/HelpdeskEmployee';
 import HelpdeskAdmin from './pages/HelpdeskAdmin';
 import Login from './pages/Login';
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="/helpdesk" element={<RequireAuth><PortalLayout><HelpdeskEmployee /></PortalLayout></RequireAuth>} />
         <Route path="/helpdesk/admin" element={<RequireAuth adminOnly><PortalLayout><HelpdeskAdmin /></PortalLayout></RequireAuth>} />
         <Route path="/phones" element={<RequireAuth><PortalLayout><PhoneBook /></PortalLayout></RequireAuth>} />
+        <Route path="/medreg" element={<RequireAuth><PortalLayout><MedregLaunch /></PortalLayout></RequireAuth>} />
 
         {/* Мониторинг ИТ — только для администраторов ИТ (тёмная тема) */}
         <Route path="/monitor" element={<RequireAuth adminOnly><MonitorLayout><Dashboard /></MonitorLayout></RequireAuth>} />

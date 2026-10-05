@@ -5,6 +5,7 @@
  * scope="absence" — отпуск, больничный, отгул, командировка + мои заявления
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFetch } from '../hooks/useFetch';
 import { authSend, getAuth } from '../lib/portal-auth';
 import {
@@ -12,6 +13,7 @@ import {
   PORTAL_STATUS_LABELS, PORTAL_STATUS_STYLES,
 } from '../lib/desk';
 import { API_BASE, formatDateTime } from '../lib/api';
+import { launchMedreg, MEDREG_PATH } from '../lib/medreg';
 
 // Настройки внешнего вида (загружаются один раз, применяются к hero-блоку)
 let _uiSettings = null;
@@ -58,6 +60,7 @@ const EMPTY = { kind: 'vacation', details: '', date_from: '', date_to: '' };
 
 export default function PortalHome({ scope = 'home' }) {
   const auth = getAuth();
+  const navigate = useNavigate();
   // Профиль из localStorage — быстрый первый рендер без запроса;
   // /auth/me подгружается только если ФИО ещё не сохранены (например, после смены в AD)
   const [me, setMe] = useState(null);
@@ -208,6 +211,28 @@ export default function PortalHome({ scope = 'home' }) {
           </div>
         )}
       </div>
+
+      {/* МИС МедРег — запуск (только на главной) */}
+      {scope === 'home' && (
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-2xl">🩺</span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">МИС</p>
+              <button onClick={() => navigate('/medreg')} className="text-lg font-bold text-[#1f2937] underline-offset-4 hover:underline">
+                Открыть МедРег
+              </button>
+              <p className="text-xs text-slate-400">медицинская информационная система · {MEDREG_PATH}</p>
+            </div>
+          </div>
+          <button
+            onClick={launchMedreg}
+            className="portal-btn rounded-xl bg-[#e63a2e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_6px_16px_-6px_rgba(230,58,46,0.6)] hover:bg-[#c9301f]"
+          >
+            ▶ Запустить МедРег
+          </button>
+        </section>
+      )}
 
       {/* Новости клиники (только на главной) */}
       {scope === 'home' && newsItems.length > 0 && (
