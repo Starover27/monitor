@@ -229,21 +229,28 @@ class MonitoringAgent:
                 "timestamp": self._now_iso(),
             })
 
+    async def _send_inventory(self) -> None:
+        """Собрать и отправить инвентаризацию, синхронизировать watchlist-службы."""
+        from inventory import collect
+        from watchlist import parse, merge_inventory, watchlist_path
+        entries = parse(watchlist_path(self.config_path))
+        inventory_cfg = merge_inventory(self.config["inventory"], entries)
+        self._log_watchlist(inventory_cfg, entries.warnings)
+        self.config["inventory"] = inventory_cfg
+        snapshot = await asyncio.to_thread(collect, inventory_cfg)
+        response = await self.client.post(
+            f"{self.backend_url}/api/inventory",
+            json=snapshot,
+            headers={"X-Agent-Token": self.token},
+        )
+        response.raise_for_status()
+        await self._sync_watchlist_services(snapshot)
+
     async def run_check_cycle(self):
         """Одна итерация проверок всех сервисов."""
         if self.config.get("inventory", {}).get("enabled"):
-            from inventory import collect
-            from watchlist import parse, merge_inventory, watchlist_path
             try:
-                entries = parse(watchlist_path(self.config_path))
-                inventory_cfg = merge_inventory(self.config["inventory"], entries)
-                self._log_watchlist(inventory_cfg, entries.warnings)
-                self.config["inventory"] = inventory_cfg
-                snapshot = await asyncio.to_thread(collect, inventory_cfg)
-                response = await self.client.post(f"{self.backend_url}/api/inventory", json=snapshot,
-                                                  headers={"X-Agent-Token": self.token})
-                response.raise_for_status()
-                await self._sync_watchlist_services(snapshot)
+                await self._send_inventory()
             except Exception:
                 self.logger.exception("Не удалось собрать/отправить инвентаризацию")
         tasks = [self.check_service(svc) for svc in self.config["services"]]
@@ -256,7 +263,7 @@ class MonitoringAgent:
 
             svc_name = self.config["services"][i]["name"]
             status_emoji = "✓" if result["status"] == "up" else "✗"
-            latency = f"{result['latency_ms']}ms" if result["latency_ms"] else "N/A"
+            latency = f"{result['latency_ms']}ms" if result['latency_ms'] else "N/A"
             self.logger.info(f"{status_emoji} {svc_name}: {result['status'].upper()} | {latency}")
             await self.send_heartbeat(result)
 
@@ -307,6 +314,14 @@ class MonitoringAgent:
             return
 
         self.logger.info(f"Зарегистрировано: {len(self.service_map)} | Интервал: {self.check_interval}s")
+
+        # Сразу отправляем инвентаризацию, чтобы хост появился в дашборде без ожидания check_interval
+        if self.config.get("inventory", {}).get("enabled"):
+            try:
+                await self._send_inventory()
+                self.logger.info("✓ Стартовая инвентаризация отправлена")
+            except Exception:
+                self.logger.exception("Не удалось отправить стартовую инвентаризацию")
 
         try:
             while True:

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/assets", tags=["Assets"])
 
 # Стартовые категории и их поля (создаются один раз)
 DEFAULT_CATEGORIES = [
-    ("Телефоны", "📱", [
+    ("Сотовые телефоны", "📱", [
         "Модель", "Серийный номер", "Цвет/корпус", "Пользователь (ФИО)",
         "SIM-карта (номер)", "Дата выдачи", "Статус", "Примечание",
     ]),
@@ -34,11 +34,6 @@ DEFAULT_CATEGORIES = [
 
 def _seed_categories(db: Session):
     if db.query(AssetCategory).count() > 0:
-        # одноразовое переименование: «Сотовые телефоны» -> «Телефоны»
-        old = db.query(AssetCategory).filter(AssetCategory.name == "Сотовые телефоны").first()
-        if old and not db.query(AssetCategory).filter(AssetCategory.name == "Телефоны").first():
-            old.name = "Телефоны"
-            db.commit()
         return
     order = 0
     for name, icon, fields in DEFAULT_CATEGORIES:

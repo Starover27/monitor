@@ -23,8 +23,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.api.auth import require_admin
+from app.api.deps import get_db
 from app.core.config import settings
 from app.core.database import Base, engine
 from app.core.migrations import ensure_columns, sqlite_db_path
@@ -297,3 +299,71 @@ async def restore_backup(
     finally:
         _resume_scheduler(paused)
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+# ==================== Автоматическое расписание ====================
+
+from app.services.backup_scheduler import create_backup, prune_old_backups, get_backup_files, BACKUP_DIR
+from app.models import AppSetting
+
+
+@router.get("/schedule")
+def get_backup_schedule(admin=Depends(require_admin), db: Session = Depends(get_db)):
+    keys = {
+        "BACKUP_SCHEDULE_ENABLED": "false",
+        "BACKUP_SCHEDULE_CRON": "0 2 * * *",
+        "BACKUP_KEEP_COUNT": "5",
+        "BACKUP_INCLUDE_ENV": "false",
+    }
+    out = {}
+    for k, default in keys.items():
+        row = db.query(AppSetting).filter(AppSetting.key == k).first()
+        out[k] = row.value if row and row.value is not None else default
+    return out
+
+
+@router.put("/schedule")
+def update_backup_schedule(payload: dict, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    allowed = {"BACKUP_SCHEDULE_ENABLED", "BACKUP_SCHEDULE_CRON", "BACKUP_KEEP_COUNT", "BACKUP_INCLUDE_ENV"}
+    for key, value in (payload or {}).items():
+        if key not in allowed:
+            continue
+        if key == "BACKUP_KEEP_COUNT":
+            try:
+                value = str(max(1, int(value)))
+            except (TypeError, ValueError):
+                value = "5"
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if row:
+            row.value = str(value)
+        else:
+            db.add(AppSetting(key=key, value=str(value)))
+    db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/trigger")
+def trigger_backup(admin=Depends(require_admin), db: Session = Depends(get_db)):
+    include_env = False
+    row = db.query(AppSetting).filter(AppSetting.key == "BACKUP_INCLUDE_ENV").first()
+    if row and row.value:
+        include_env = row.value.lower() in ("1", "true", "yes", "да")
+    try:
+        path = create_backup(include_env=include_env)
+        keep = 5
+        row = db.query(AppSetting).filter(AppSetting.key == "BACKUP_KEEP_COUNT").first()
+        if row and row.value:
+            try:
+                keep = int(row.value)
+            except (TypeError, ValueError):
+                keep = 5
+        prune_old_backups(keep)
+        return {"status": "ok", "file": os.path.basename(path)}
+    except Exception as e:
+        logger.exception("Ошибка ручного бэкапа")
+        raise HTTPException(500, f"Не удалось создать бэкап: {e}")
+
+
+@router.get("/files")
+def list_backup_files(admin=Depends(require_admin)):
+    return get_backup_files()

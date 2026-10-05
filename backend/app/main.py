@@ -58,6 +58,13 @@ async def lifespan(app: FastAPI):
         f"{settings.NOTIFICATION_CHANNEL})"
     )
 
+    # Автоматические резервные копии по расписанию (если включено в настройках)
+    from app.services.backup_scheduler import register_backup_job
+    try:
+        register_backup_job(scheduler)
+    except Exception as e:
+        logger.warning(f"⚠ Автобэкап не зарегистрирован: {e}")
+
     discovery_task = asyncio.create_task(scanner.run())
     seed_default_users()
     seed_sections()

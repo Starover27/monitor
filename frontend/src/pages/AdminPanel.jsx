@@ -686,6 +686,13 @@ function SettingsTab() {
   const [restoreFile, setRestoreFile] = useState(null);
   const [restoreEnv, setRestoreEnv] = useState(false);
 
+  // Автоматические резервные копии
+  const [schedule, setSchedule] = useState(null);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState(null);
+  const [triggerBusy, setTriggerBusy] = useState(false);
+  const [files, setFiles] = useState([]);
+
   const downloadBackup = async () => {
     setBackupBusy('download');
     setBackupMsg(null);
@@ -745,11 +752,52 @@ function SettingsTab() {
     }
   };
 
+  const loadSchedule = async () => {
+    try {
+      const s = await authFetch(`${API_BASE}/api/backup/schedule`);
+      if (s) setSchedule(s);
+    } catch (e) { /* ignore */ }
+    try {
+      const f = await authFetch(`${API_BASE}/api/backup/files`);
+      setFiles(Array.isArray(f) ? f : []);
+    } catch (e) { /* ignore */ }
+  };
+
+  const saveSchedule = async () => {
+    setScheduleBusy(true);
+    setScheduleMsg(null);
+    try {
+      await authFetch(`${API_BASE}/api/backup/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(schedule || {}),
+      });
+      setScheduleMsg({ ok: true, text: 'Расписание сохранено.' });
+    } catch (e) {
+      setScheduleMsg({ ok: false, text: `Ошибка: ${e.message}` });
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+
+  const triggerBackup = async () => {
+    setTriggerBusy(true);
+    setScheduleMsg(null);
+    try {
+      const res = await authFetch(`${API_BASE}/api/backup/trigger`, { method: 'POST' });
+      const j = typeof res === 'object' && res !== null ? res : {};
+      setScheduleMsg({ ok: true, text: j.file ? `Бэкап создан: ${j.file}` : 'Бэкап создан.' });
+      const f = await authFetch(`${API_BASE}/api/backup/files`);
+      setFiles(Array.isArray(f) ? f : []);
+    } catch (e) {
+      setScheduleMsg({ ok: false, text: `Ошибка: ${e.message}` });
+    } finally {
+      setTriggerBusy(false);
+    }
+  };
+
   useEffect(() => {
-    authSend(`${API_BASE}/api/settings`, 'GET')
-      .then((s) => setForm((f) => ({ ...f, ...s, SMTP_PASSWORD: '' })))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoaded(true));
+    loadSchedule();
   }, []);
 
   const setField = (k) => (e) => {
