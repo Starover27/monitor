@@ -680,6 +680,71 @@ function SettingsTab() {
   const [discResult, setDiscResult] = useState(null);
   const [discError, setDiscError] = useState(null);
 
+  // Резервная копия
+  const [backupBusy, setBackupBusy] = useState(null); // 'download' | 'restore' | null
+  const [backupMsg, setBackupMsg] = useState(null);  // { ok, text }
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [restoreEnv, setRestoreEnv] = useState(false);
+
+  const downloadBackup = async () => {
+    setBackupBusy('download');
+    setBackupMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/backup/download`, {
+        headers: { Authorization: `Bearer ${getAuth()?.token || ''}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename="?([^";]+)"?/);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = m ? m[1] : 'monitor-backup.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setBackupMsg({ ok: true, text: 'Резервная копия создана и скачана.' });
+    } catch (e) {
+      setBackupMsg({ ok: false, text: `Не удалось создать копию: ${e.message}` });
+    } finally {
+      setBackupBusy(null);
+    }
+  };
+
+  const restoreBackup = async () => {
+    if (!restoreFile) { setBackupMsg({ ok: false, text: 'Выберите файл резервной копии (.zip)' }); return; }
+    let warn = 'ВНИМАНИЕ: текущие данные портала будут заменены данными из резервной копии.\nТекущая база сохранится как monitoring.db.pre-restore-… в папке backend (последние 3 копии).';
+    if (restoreEnv) warn += '\n\nБудет заменён .env (ключи, SMTP, LDAP): все сессии и токен агентов сбросятся — понадобится повторный вход и обновление токена в агентах.';
+    if (!window.confirm(warn)) return;
+    setBackupBusy('restore');
+    setBackupMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', restoreFile);
+      fd.append('include_env', String(restoreEnv));
+      const res = await fetch(`${API_BASE}/api/backup/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAuth()?.token || ''}` },
+        body: fd,
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.detail || `HTTP ${res.status}`);
+      setBackupMsg({ ok: true, text: j.warning || 'Резервная копия восстановлена.' });
+      setRestoreFile(null);
+      setRestoreEnv(false);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      setBackupMsg({ ok: false, text: `Не удалось восстановить: ${e.message}` });
+    } finally {
+      setBackupBusy(null);
+    }
+  };
+
   useEffect(() => {
     authSend(`${API_BASE}/api/settings`, 'GET')
       .then((s) => setForm((f) => ({ ...f, ...s, SMTP_PASSWORD: '' })))
@@ -957,6 +1022,48 @@ function SettingsTab() {
         <p className="mt-2 text-xs text-slate-400">
           Если SMTP-сервер не указан, уведомления сохраняются в папку backend/outbox в формате .eml — их можно открыть в Outlook.
         </p>
+      </div>
+
+      {/* Резервная копия */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-bold text-[#1f2937]">🗄 Резервная копия</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Копия включает: базу данных (пользователи, заявки, задачи, телефонный справочник, новости, настройки),
+          файл конфигурации .env и загрушенные файлы (картинки новостей, логотип).
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            className="rounded-lg bg-[#2b3a4b] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1e293b] disabled:opacity-50"
+            onClick={downloadBackup}
+            disabled={backupBusy !== null}
+          >
+            {backupBusy === 'download' ? 'Создание…' : '⬇️ Скачать резервную копию'}
+          </button>
+          <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+            {backupBusy === 'restore' ? 'Восстановление…' : '⬆️ Восстановить из файла'}
+            <input
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
+            />
+          </label>
+          {restoreFile && <span className="text-xs text-slate-500">{restoreFile.name}</span>}
+        </div>
+        <label className="mt-3 flex items-start gap-2 text-xs text-slate-500">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-[#e63a2e]"
+            checked={restoreEnv}
+            onChange={(e) => setRestoreEnv(e.target.checked)}
+          />
+          Восстановить также .env (конфигурация: ключи, SMTP, LDAP) — сбросит токен агентов и все сессии
+        </label>
+        {backupMsg && (
+          <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${backupMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+            {backupMsg.text}
+          </p>
+        )}
       </div>
 
       {/* Сохранение */}

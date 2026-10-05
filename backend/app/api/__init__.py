@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from app.api import heartbeat, services, history, alerts, groups
 from app.api import phonebook, helpdesk, portal, messages, ui, tasks, assets, birthdays
+from app.api import backup
 
 api_router = APIRouter()
 api_router.include_router(heartbeat.router)
@@ -20,4 +21,5 @@ api_router.include_router(ui.router)
 api_router.include_router(tasks.router)
 api_router.include_router(assets.router)
 api_router.include_router(birthdays.router)
+api_router.include_router(backup.router)
 

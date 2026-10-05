@@ -17,4 +17,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Разделяем чанки: vendor обновляется редко — браузер кэширует его
+    // между релизами портала, а код приложения грузится быстро.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-recharts': ['recharts'],
+        },
+      },
+    },
+  },
 })
