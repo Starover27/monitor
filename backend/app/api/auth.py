@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.models import User
+from app.models import User, UserActivity
 from app.schemas import LoginRequest, LoginResponse, UserResponse
 from app.services.auth_service import (
     ldap_check_credentials, verify_local_password, create_token, verify_token,
@@ -66,6 +66,14 @@ def get_current_user(
     if not user or user.disabled:
         raise HTTPException(401, "Пользователь не найден или заблокирован")
     return user
+
+
+def _track_login(db: Session, user_id: int, username: str) -> None:
+    try:
+        db.add(UserActivity(user_id=user_id, event_type="login", path="/", meta=json.dumps({"username": username}, ensure_ascii=False)))
+        db.commit()
+    except Exception:
+        pass
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
@@ -128,12 +136,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(user)
             token = create_token(user.username)
+            _track_login(db, user.id, user.username)
             return LoginResponse(token=token, user=UserResponse.model_validate(user))
 
     # 2) Локальная учётка в БД
     user = db.query(User).filter(User.username == username).first()
     if user and user.password_hash and verify_local_password(payload.password, user.password_hash):
         token = create_token(user.username)
+        _track_login(db, user.id, user.username)
         return LoginResponse(token=token, user=UserResponse.model_validate(user))
 
     raise HTTPException(401, "Неверный логин или пароль")
@@ -216,4 +226,5 @@ def sso(authorization: str = Header(default=""), db: Session = Depends(get_db)):
     db.refresh(user)
 
     token = create_token(user.username)
+    _track_login(db, user.id, user.username)
     return LoginResponse(token=token, user=UserResponse.model_validate(user))

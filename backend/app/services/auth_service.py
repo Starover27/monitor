@@ -18,7 +18,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-SESSION_TTL_SECONDS = 12 * 3600  # 12 часов
+SESSION_TTL_SECONDS = 30 * 60  # 30 минут неактивности
 
 
 # ---------- Пароли ----------

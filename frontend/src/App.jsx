@@ -24,7 +24,8 @@ import PortalHome from './pages/PortalHome';
 import AdminPanel from './pages/AdminPanel';
 import AgentPage from './pages/AgentPage';
 import Assets from './pages/Assets';
-import { getAuth } from './lib/portal-auth';
+import Analytics from './pages/Analytics';
+import { getAuth, useInactivityLogout } from './lib/portal-auth';
 
 function RequireAuth({ children, adminOnly = false, path = null }) {
   const auth = getAuth();
@@ -49,6 +50,8 @@ function MonitorLayout({ children }) {
 }
 
 export default function App() {
+  useInactivityLogout();
+
   return (
     <BrowserRouter>
       <Routes>
@@ -75,6 +78,7 @@ export default function App() {
 
         {/* Админ-панель портала */}
         <Route path="/portal/admin" element={<RequireAuth adminOnly><PortalLayout><AdminPanel /></PortalLayout></RequireAuth>} />
+        <Route path="/monitor/analytics" element={<RequireAuth adminOnly><MonitorLayout><Analytics /></MonitorLayout></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   );

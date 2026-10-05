@@ -33,6 +33,7 @@ export default function AdminPanel() {
           ['news', '📰 Новости'],
           ['ui', '🎨 Интерфейс'],
           ['settings', '⚙️ Настройки'],
+          ['agents', '🖥 Агенты'],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -51,6 +52,7 @@ export default function AdminPanel() {
       {tab === 'news' && <NewsTab />}
       {tab === 'ui' && <UITab />}
       {tab === 'settings' && <SettingsTab />}
+      {tab === 'agents' && <AgentsTab />}
     </div>
   );
 }
@@ -1410,6 +1412,66 @@ function NewsTab() {
             <p className="mt-1 text-xs text-slate-400">{n.author} · {new Date(n.created_at).toLocaleString('ru-RU')}</p>
           </article>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ==================== Агенты ==================== */
+
+function AgentsTab() {
+  const [form, setForm] = useState({ host_id: '', hostname: '', addresses: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const auth = useMemo(() => { const t = getAuth()?.token; return t ? { Authorization: `Bearer ${t}` } : undefined; }, []);
+
+  const add = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const addresses = (form.addresses || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!form.host_id.trim() || !form.hostname.trim()) throw new Error('Укажите host_id и hostname');
+      const res = await fetch(`${API_BASE}/api/agent/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ host_id: form.host_id.trim(), hostname: form.hostname.trim(), addresses }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.detail || `HTTP ${res.status}`);
+      setMsg({ ok: true, text: `Агент «${form.hostname}» добавлен.` });
+      setForm({ host_id: '', hostname: '', addresses: '' });
+    } catch (e) {
+      setMsg({ ok: false, text: `Ошибка: ${e.message}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-bold text-[#1f2937]">Добавить агента вручную</h2>
+        <p className="mt-1 text-sm text-slate-500">Создаёт карточку хоста в разделе «Клиенты». Агент потом начнёт отправлять данные автоматически.</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Host ID *</span>
+            <input className={inputCls} placeholder="например office-pc-01" value={form.host_id} onChange={(e) => setForm((f) => ({ ...f, host_id: e.target.value }))} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Hostname *</span>
+            <input className={inputCls} placeholder="имя компьютера" value={form.hostname} onChange={(e) => setForm((f) => ({ ...f, hostname: e.target.value }))} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">IP-адреса (через запятую)</span>
+            <input className={inputCls} placeholder="192.168.1.10, 10.0.0.5" value={form.addresses} onChange={(e) => setForm((f) => ({ ...f, addresses: e.target.value }))} />
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button className="rounded-lg bg-[#e63a2e] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c9301f] disabled:opacity-50" onClick={add} disabled={busy}>
+            {busy ? 'Добавление…' : 'Добавить агента'}
+          </button>
+        </div>
+        {msg && <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>{msg.text}</p>}
       </div>
     </div>
   );

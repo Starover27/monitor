@@ -63,3 +63,40 @@ export async function authSend(url, method, body) {
   }
   return method === 'DELETE' ? null : res.json();
 }
+
+/** Отправить событие аналитики (без ожидания ответа) */
+export async function trackEvent(eventType, path, meta = {}) {
+  try {
+    const auth = getAuth();
+    if (!auth?.token) return;
+    const body = new FormData();
+    body.append('event_type', eventType);
+    if (path) body.append('path', path);
+    body.append('meta', JSON.stringify(meta));
+    await fetch(`${API_BASE}/api/analytics/event`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body,
+    });
+  } catch {
+    // analytics must never break UX
+  }
+}
+
+/** Хук: авто-выход через 30 минут неактивности */
+export function useInactivityLogout() {
+  if (typeof window === 'undefined') return;
+  const TIMEOUT = 30 * 60 * 1000;
+  let timer;
+  const reset = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      clearAuth();
+      window.location.href = '/';
+    }, TIMEOUT);
+  };
+  const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+  events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+  reset();
+  return reset;
+}

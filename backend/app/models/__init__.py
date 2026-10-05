@@ -18,5 +18,6 @@ from .message import Message
 from .ui_setting import UISetting
 from .assets import AssetCategory, AssetField, AssetItem
 from .birthday import Birthday
+from .analytics import UserActivity
 
-__all__ = ["Service", "StatusHistory", "Alert", "PhoneBookEntry", "PhoneRoom", "PortalTask", "HelpdeskTicket", "TicketEvent", "PortalRequest", "User", "AppSetting", "PortalSection", "PhoneTableColumn", "PhoneTableRow", "News", "Message", "UISetting", "AssetCategory", "AssetField", "AssetItem", "Birthday"]
+__all__ = ["Service", "StatusHistory", "Alert", "PhoneBookEntry", "PhoneRoom", "PortalTask", "HelpdeskTicket", "TicketEvent", "PortalRequest", "User", "AppSetting", "PortalSection", "PhoneTableColumn", "PhoneTableRow", "News", "Message", "UISetting", "AssetCategory", "AssetField", "AssetItem", "Birthday", "UserActivity"]

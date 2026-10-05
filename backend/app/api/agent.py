@@ -215,6 +215,39 @@ def agent_files_bytes() -> dict:
     return files
 
 
+class ManualAgentCreate(BaseModel):
+    host_id: str = Field(min_length=1, max_length=128)
+    hostname: str = Field(min_length=1, max_length=255)
+    addresses: List[str] = Field(max_length=64)
+
+
+@router.post("/manual", dependencies=[Depends(require_admin)])
+def manual_add_agent(payload: ManualAgentCreate, db=Depends(get_db)):
+    """Добавить агент вручную (создаёт запись в host_snapshots)."""
+    now = datetime.now(timezone.utc)
+    row = db.get(HostSnapshot, payload.host_id)
+    if row is None:
+        row = HostSnapshot(host_id=payload.host_id)
+        db.add(row)
+    row.payload = {
+        "host_id": payload.host_id,
+        "hostname": payload.hostname,
+        "addresses": payload.addresses[:64],
+        "timestamp": now.isoformat(),
+        "uptime_seconds": 0,
+        "certificates": [],
+        "disks": [],
+        "services": [],
+        "roots": [],
+        "errors": [],
+        "ping_only": True,
+        "manual": True,
+    }
+    row.received_at = now
+    db.commit()
+    return {"ok": True, "host_id": payload.host_id}
+
+
 @router.post("/build", dependencies=[Depends(require_admin)])
 def build_agent_client(payload: BuildRequest):
     """Собрать zip с готовым клиентом: конфиг + токен + exe (или исходники) + скрипты."""
