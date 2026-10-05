@@ -49,10 +49,6 @@ export default function MedregLaunch() {
               <h1 className="mt-0.5 text-2xl font-bold text-[#1f2937]">МедРег</h1>
               <p className="mt-1 text-sm leading-relaxed text-slate-500">
                 Карточка пациента, назначения, история и ордер — всё в одном окне.
-                Система запускается с сервера 192.168.88.1.
-              </p>
-              <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600">
-                {MEDREG_PATH}
               </p>
             </div>
           </div>

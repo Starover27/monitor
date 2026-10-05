@@ -13,7 +13,7 @@ import {
   PORTAL_STATUS_LABELS, PORTAL_STATUS_STYLES,
 } from '../lib/desk';
 import { API_BASE, formatDateTime } from '../lib/api';
-import { launchMedreg, MEDREG_PATH } from '../lib/medreg';
+import { launchMedreg } from '../lib/medreg';
 
 // Настройки внешнего вида (загружаются один раз, применяются к hero-блоку)
 let _uiSettings = null;
@@ -222,7 +222,7 @@ export default function PortalHome({ scope = 'home' }) {
               <button onClick={() => navigate('/medreg')} className="text-lg font-bold text-[#1f2937] underline-offset-4 hover:underline">
                 Открыть МедРег
               </button>
-              <p className="text-xs text-slate-400">медицинская информационная система · {MEDREG_PATH}</p>
+              <p className="text-xs text-slate-400">медицинская информационная система</p>
             </div>
           </div>
           <button
