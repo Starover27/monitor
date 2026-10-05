@@ -40,6 +40,13 @@ export default function AgentPage() {
   const [discoveryPort, setDiscoveryPort] = useState(19443);
   const [logMaxMb, setLogMaxMb] = useState(10);
 
+  // Ручное добавление агента
+  const [manualHostId, setManualHostId] = useState('');
+  const [manualHostname, setManualHostname] = useState('');
+  const [manualAddresses, setManualAddresses] = useState('');
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualMsg, setManualMsg] = useState(null);
+
   const lines = (s) => s.split('\n').map((v) => v.trim()).filter(Boolean);
 
   const updService = (i, field, value) =>
@@ -117,6 +124,30 @@ export default function AgentPage() {
     return <div className="card p-8 text-center text-slate-400">Доступно только администраторам ИТ.</div>;
   }
 
+  const addManualAgent = async () => {
+    setManualBusy(true);
+    setManualMsg(null);
+    try {
+      const addresses = (manualAddresses || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!manualHostId.trim() || !manualHostname.trim()) throw new Error('Укажите host_id и hostname');
+      const res = await authFetch(`${API_BASE}/api/agent/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_id: manualHostId.trim(), hostname: manualHostname.trim(), addresses }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.detail || `HTTP ${res.status}`);
+      setManualMsg({ ok: true, text: `Агент «${manualHostname}» добавлен в «Клиенты».` });
+      setManualHostId('');
+      setManualHostname('');
+      setManualAddresses('');
+    } catch (e) {
+      setManualMsg({ ok: false, text: `Ошибка: ${e.message}` });
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in mx-auto max-w-4xl space-y-6">
       {/* Заголовок */}
@@ -125,21 +156,44 @@ export default function AgentPage() {
           <div>
             <h1 className="flex items-center gap-3 text-xl font-bold text-white">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-500 text-lg shadow-glow">🛰</span>
-              Агент — сборка клиента
+              Агенты
             </h1>
             <p className="mt-2 max-w-xl text-sm text-slate-400">
-              Сформируйте готовый пакет клиента мониторинга с нужными параметрами:
-              адрес сервера, интервалы, ретраи, инвентаризация, журнал и список проверок.
-              Скачанный zip содержит config.yaml, токен, установочные скрипты и,
-              если exe собран, готовый MonitorClient.exe (Python на целевом ПК не нужен).
+              Ручное добавление хоста в «Клиенты» и сборка пакета агента мониторинга.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Основные параметры */}
+      {/* Ручное добавление агента */}
       <section className="card space-y-4 p-6">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-cyan-300">Подключение</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-cyan-300">Добавить агента вручную</h2>
+        <p className="text-sm text-slate-400">Создаёт карточку хоста в «Клиенты». Агент потом начнёт отправлять данные автоматически.</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="block">
+            <span className={LABEL_CLS}>Host ID *</span>
+            <input className={INPUT_CLS} placeholder="например office-pc-01" value={manualHostId} onChange={(e) => setManualHostId(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className={LABEL_CLS}>Hostname *</span>
+            <input className={INPUT_CLS} placeholder="имя компьютера" value={manualHostname} onChange={(e) => setManualHostname(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className={LABEL_CLS}>IP-адреса (через запятую)</span>
+            <input className={INPUT_CLS} placeholder="192.168.1.10, 10.0.0.5" value={manualAddresses} onChange={(e) => setManualAddresses(e.target.value)} />
+          </label>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={addManualAgent} disabled={manualBusy} className="monitor-button">
+            {manualBusy ? 'Добавляю…' : '＋ Добавить агента'}
+          </button>
+          {manualMsg && <span className={`text-sm ${manualMsg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{manualMsg.text}</span>}
+        </div>
+      </section>
+
+      {/* Сборка клиента */}
+      <section className="card space-y-4 p-6">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-cyan-300">Собрать пакет клиента</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className={LABEL_CLS}>Адрес сервера (backend URL)</span>
