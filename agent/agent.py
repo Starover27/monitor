@@ -246,6 +246,31 @@ class MonitoringAgent:
         response.raise_for_status()
         await self._sync_watchlist_services(snapshot)
 
+    async def _send_ping(self) -> None:
+        """Минимальный «я жив»: сразу после старта создаёт карточку хоста в дашборде."""
+        import socket
+        try:
+            hostname = socket.gethostname()
+        except Exception:
+            hostname = "unknown"
+        addresses = sorted({
+            addr.address.split("%")[0]
+            for entries in __import__("psutil").net_if_addrs().values()
+            for addr in entries
+            if addr.family in (socket.AF_INET, socket.AF_INET6)
+        })[:64]
+        payload = {
+            "host_id": self.config.get("inventory", {}).get("host_id") or hostname,
+            "hostname": hostname,
+            "addresses": addresses,
+        }
+        resp = await self.client.post(
+            f"{self.backend_url}/api/agent/ping",
+            json=payload,
+            headers={"X-Agent-Token": self.token},
+        )
+        resp.raise_for_status()
+
     async def run_check_cycle(self):
         """Одна итерация проверок всех сервисов."""
         if self.config.get("inventory", {}).get("enabled"):
@@ -314,6 +339,13 @@ class MonitoringAgent:
             return
 
         self.logger.info(f"Зарегистрировано: {len(self.service_map)} | Интервал: {self.check_interval}s")
+
+        # Немедленный ping: создаёт карточку хоста в дашборде до полной инвентаризации
+        try:
+            await self._send_ping()
+            self.logger.info("✓ Startup ping отправлен")
+        except Exception:
+            self.logger.exception("Не удалось отправить startup ping")
 
         # Сразу отправляем инвентаризацию, чтобы хост появился в дашборде без ожидания check_interval
         if self.config.get("inventory", {}).get("enabled"):

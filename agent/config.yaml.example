@@ -38,48 +38,73 @@ logging:
   max_mb: 10                             # авто-обрезка: лог сменяется новым при достижении размера (МБ)
 
 # --- Список проверяемых сервисов ---
-# type: tcp | http | https | icmp | disk | cpu | memory | network
+# type: tcp | http | https | icmp | disk | cpu | memory | network | windows_service
 # Поле name уникально идентифицирует сервис на сервере (агент сам создаст его в БД,
 # если оно отсутствует).
 services:
+  - name: "Default-Gateway"
+    type: "icmp"
+    host: "192.168.1.1"
+    count: 2
+    description: "Основной шлюз (ping)"
+
+  - name: "DNS-1"
+    type: "icmp"
+    host: "8.8.8.8"
+    count: 2
+    description: "Google DNS (ping)"
+
+  - name: "DNS-2"
+    type: "icmp"
+    host: "1.1.1.1"
+    count: 2
+    description: "Cloudflare DNS (ping)"
+
+  - name: "Web-Google"
+    type: "http"
+    url: "http://www.google.com"
+    expected_status: 200
+    timeout: 8
+    description: "Веб-доступ (http)"
+
+  - name: "Web-Google-HTTPS"
+    type: "https"
+    url: "https://www.google.com"
+    expected_status: 200
+    timeout: 8
+    description: "Веб-доступ (https)"
+
+  - name: "SMTP-Gateway"
+    type: "tcp"
+    host: "192.168.1.1"
+    port: 25
+    timeout: 5
+    description: "SMTP-шлюз"
+
   - name: "DB-Server"
     type: "tcp"
     host: "192.168.1.10"
     port: 5432
     description: "PostgreSQL Database"
 
-  - name: "Web-App"
-    type: "http"
-    url: "http://192.168.1.11/health"
-    expected_status: 200        # опционально: ожидаемый HTTP-код
-    expected_body: "ok"         # опционально: подстрока, которую ждём в теле
-    description: "Web Application Health Check"
-
-  - name: "Gateway"
-    type: "icmp"
-    host: "192.168.1.1"
-    count: 3                    # количество эхо-запросов
-    description: "Network Gateway"
-
-  # --- Системные метрики (локальный хост) ---
   - name: "LocalHost-Disk-C"
     type: "disk"
-    path: "C:\\"               # Windows: "C:\\", Linux: "/"
-    threshold: 10               # DOWN если свободно < 10%
+    path: "C:\\"
+    threshold: 10
     description: "Диск C: свободное место"
 
   - name: "LocalHost-CPU"
     type: "cpu"
-    threshold: 90               # DOWN если загрузка > 90%
-    interval: 1                 # интервал измерения psutil.cpu_percent
+    threshold: 90
+    interval: 1
     description: "Загрузка процессора"
 
   - name: "LocalHost-Memory"
     type: "memory"
-    threshold: 85               # DOWN если использование ОЗУ > 85%
+    threshold: 85
     description: "Использование оперативной памяти"
 
   - name: "LocalHost-Network"
     type: "network"
-    interval: 1                 # интервал измерения сетевого трафика
+    interval: 1
     description: "Сетевой трафик (Mbps)"

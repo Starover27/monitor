@@ -7,20 +7,32 @@ POST /api/agent/build  (только админ)
   Ответ: zip-архив. Если собран agent/dist/MonitorClient.exe — в zip кладётся
   готовый exe (Python на целевом ПК не нужен); иначе — исходники + скрипты venv.
   На клиенте достаточно распаковать и запустить MonitorClient.exe (или START-CLIENT.cmd).
+
+POST /api/agent/ping  (анонимно по токену)
+  Минимальный «я жив» от агента при старте. Создаёт/обновляет запись в host_snapshots,
+  чтобы в разделе «Клиенты» сразу появилась карточка, даже если полная инвентаризация
+  пока не собралась (нет прав на диски/сертификаты и т.д.).
 """
 import io
+import json
+import logging
+import secrets
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app.api.deps import get_db
 from app.api.auth import require_admin
+from app.api.inventory import HostSnapshot
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -47,6 +59,46 @@ AGENT_DIRS = {"checks"}
 CLIENT_EXE = AGENT_DIR / "dist" / "MonitorClient.exe"
 
 DEFAULT_HOST_ID = "agent-client"
+
+
+class AgentPing(BaseModel):
+    host_id: str = Field(min_length=1, max_length=128)
+    hostname: str = Field(min_length=1, max_length=255)
+    addresses: List[str] = Field(max_length=64)
+
+
+class AgentPing(BaseModel):
+    host_id: str = Field(min_length=1, max_length=128)
+    hostname: str = Field(min_length=1, max_length=255)
+    addresses: List[str] = Field(max_length=64)
+
+
+@router.post("/ping")
+def agent_ping(payload: AgentPing, x_agent_token: str = Header(...), db=Depends(get_db)):
+    """Минимальный «я жив» от агента при старте. Не требует прав администратора."""
+    if settings.SECRET_KEY == "your-secret-key-change-in-production" or not secrets.compare_digest(x_agent_token, settings.SECRET_KEY):
+        raise HTTPException(401, "Настройте общий SECRET_KEY сервера и токен клиента")
+    now = datetime.now(timezone.utc)
+    row = db.get(HostSnapshot, payload.host_id)
+    if row is None:
+        row = HostSnapshot(host_id=payload.host_id)
+        db.add(row)
+    row.payload = {
+        "host_id": payload.host_id,
+        "hostname": payload.hostname,
+        "addresses": payload.addresses[:64],
+        "timestamp": now.isoformat(),
+        "uptime_seconds": 0,
+        "certificates": [],
+        "disks": [],
+        "services": [],
+        "roots": [],
+        "errors": [],
+        "ping_only": True,
+    }
+    row.received_at = now
+    db.commit()
+    return {"ok": True}
 
 
 class BuildRequest(BaseModel):
