@@ -101,6 +101,12 @@ def ensure_columns():
     if "metric_unit" not in existing_cols_hist:
         migrations.append("ALTER TABLE status_history ADD COLUMN metric_unit VARCHAR(32)")
 
+    # Колонка задач: ссылка на внутренний документ (UNC-путь)
+    cursor.execute("PRAGMA table_info(portal_tasks)")
+    cols_tasks = {row[1] for row in cursor.fetchall()}
+    if cols_tasks and "document_url" not in cols_tasks:
+        migrations.append("ALTER TABLE portal_tasks ADD COLUMN document_url VARCHAR(512)")
+
     for sql in migrations:
         try:
             cursor.execute(sql)

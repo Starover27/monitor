@@ -13,6 +13,7 @@ class PortalTask(Base):
     title = Column(String(256), nullable=False)
     details = Column(String(1024), nullable=True)
     due_date = Column(String(32), nullable=True, index=True)      # "2026-10-15" (дата из календаря)
+    document_url = Column(String(512), nullable=True)             # ссылка на внутренний документ (UNC-путь)
     done = Column(Boolean, nullable=False, default=False)
     # владелец задачи (строкой: ФИО/логин — как имя сотрудника в портале)
     owner = Column(String(128), nullable=False, index=True)

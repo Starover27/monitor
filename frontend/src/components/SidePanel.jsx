@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { authSend, getAuth } from '../lib/portal-auth';
 import { API_BASE, formatDateTime } from '../lib/api';
+import NewTaskModal from './NewTaskModal';
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -45,7 +46,7 @@ function CalendarWidget() {
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [tasks, setTasks] = useState([]);
   const [selected, setSelected] = useState(null); // ISO-дата открытого дня
-  const [form, setForm] = useState({ title: '', due_date: '', assignee: '', details: '' });
+  const [modalOpen, setModalOpen] = useState(false); // окно «Новая задача»
   const [people, setPeople] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -126,23 +127,6 @@ function CalendarWidget() {
   const visibleTasks = view === 'all' && showDone ? tasks : openTasks;
   const dayTasks = selected ? tasks.filter((t) => t.due_date === selected && (showDone || !t.done)) : [];
 
-  const createTask = async () => {
-    if (!form.title.trim()) { setError('Введите текст задачи'); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      await authSend(`${API_BASE}/api/tasks`, 'POST', {
-        title: form.title.trim(),
-        details: form.details.trim() || null,
-        due_date: form.due_date || selected || null,
-        assignee: form.assignee || null,
-      });
-      setForm({ title: '', due_date: '', assignee: '', details: '' });
-      loadTasks();
-    } catch (e) { setError(e.message); }
-    finally { setBusy(false); }
-  };
-
   const saveEdit = async () => {
     if (!editing || !editing.title.trim()) { setError('Введите текст задачи'); return; }
     setBusy(true);
@@ -216,8 +200,17 @@ function CalendarWidget() {
               <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
                 <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#e63a2e]" checked={!!t.done} onChange={(e) => setDone(t, e.target.checked)} />
                 <span className="min-w-0">
-                  <span className={`block truncate text-sm font-semibold ${t.done ? 'text-slate-400 line-through' : 'text-[#1f2937]'}`} title={t.title}>{t.title}</span>
-                  {t.details && <span className="mt-0.5 block truncate text-[11px] text-slate-500" title={t.details}>{t.details}</span>}
+                   <span className={`block truncate text-sm font-semibold ${t.done ? 'text-slate-400 line-through' : 'text-[#1f2937]'}`} title={t.title}>{t.title}</span>
+                   {t.details && <span className="mt-0.5 block truncate text-[11px] text-slate-500" title={t.details}>{t.details}</span>}
+                   {t.document_url && (
+                     <a
+                       href={t.document_url}
+                       title={t.document_url}
+                       className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[11px] font-medium text-sky-600 hover:underline"
+                     >
+                       <span className="truncate">📎 {t.document_url.replace(/.*[/\\]/, '')}</span>
+                     </a>
+                   )}
                   <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">
                     {t.due_date && <span>📅 {t.due_date}</span>}
                     {t.forwarded && <span className="rounded bg-amber-100 px-1 font-bold text-amber-700">→ {t.assignee}</span>}
@@ -364,41 +357,25 @@ function CalendarWidget() {
         )}
       </div>
 
-      {/* Новая задача */}
+      {/* Новая задача — кнопка открывает окно: галочки сотрудников/отделов + документ */}
       <div className="border-t border-slate-100 p-3">
-          <div className="space-y-2">
-<input
-  className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-black outline-none focus:border-[#e63a2e]"
-  placeholder="Новая задача…"
-  value={form.title}
-  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-  onKeyDown={(e) => e.key === 'Enter' && createTask()}
-/>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-black outline-none focus:border-[#e63a2e]"
-              placeholder="Описание (необязательно)…"
-              value={form.details}
-              onChange={(e) => setForm((f) => ({ ...f, details: e.target.value }))}
-            />
-            <div className="flex gap-2">
-            <input type="date" className="w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-black outline-none focus:border-[#e63a2e]"
-              value={form.due_date || selected || ''}
-              onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} />
-            <select className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-black outline-none focus:border-[#e63a2e]"
-              value={form.assignee} onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}>
-              <option value="">— себе —</option>
-              {people.map((p) => <option key={p.id} value={p.full_name}>{p.full_name}</option>)}
-            </select>
-            <button
-              className="shrink-0 rounded-lg bg-[#e63a2e] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#c9301f] disabled:opacity-50"
-              onClick={createTask} disabled={busy}
-            >+</button>
-          </div>
-          {form.assignee && (
-            <p className="text-[10px] text-amber-600">Задача будет переадресована: {form.assignee} (придёт уведомление на почту)</p>
-          )}
-        </div>
+        <button
+          className="w-full rounded-lg bg-[#e63a2e] px-3 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#c9301f]"
+          onClick={() => setModalOpen(true)}
+        >
+          ＋ Новая задача
+        </button>
       </div>
+
+      {modalOpen && (
+        <NewTaskModal
+          people={people}
+          myName={myName || myUsername}
+          defaultDue={selected || todayIso}
+          onClose={() => setModalOpen(false)}
+          onCreated={() => loadTasks()}
+        />
+      )}
     </div>
   );
 }

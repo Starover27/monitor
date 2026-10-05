@@ -10,14 +10,11 @@
  */
 import { useState } from 'react';
 import {
-  MEDREG_PATH,
   launchMedreg,
   downloadMedregLauncher,
-  copyMedregPath,
 } from '../lib/medreg';
 
 export default function MedregLaunch() {
-  const [copied, setCopied] = useState(false);
   const [hint, setHint] = useState(null);
 
   const onLaunch = () => {
@@ -28,12 +25,6 @@ export default function MedregLaunch() {
   const onInstall = () => {
     downloadMedregLauncher();
     setHint('Скачан файл medreg-launcher.reg. Двойной клик по нему и «Да» в подтверждении Windows — и кнопка «Открыть МедРег» будет работать в один клик.');
-  };
-
-  const onCopy = async () => {
-    const ok = await copyMedregPath();
-    setCopied(ok);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -66,12 +57,6 @@ export default function MedregLaunch() {
             >
               ⚙ Установить лаунчер (один раз)
             </button>
-            <button
-              onClick={onCopy}
-              className="portal-btn rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-[#2b3a4b] hover:bg-slate-50"
-            >
-              {copied ? '✓ Скопировано' : '📋 Скопировать путь'}
-            </button>
           </div>
 
           {hint && (
@@ -92,18 +77,12 @@ export default function MedregLaunch() {
             — двойной клик и «Да». После этого кнопка «Открыть МедРег» работает в один клик.
           </li>
           <li>
-            <b>Без лаунчера:</b> нажмите <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">Win</span>+
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">R</span>, вставьте
-            <span className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">{MEDREG_PATH}</span>
-            и нажмите «OK».
+            <b>Диалог Windows:</b> при первом запуске может появиться окно «Открыть внешнее приложение?» —
+            нажмите «Открыть» / «Да».
           </li>
           <li>
-            Проверьте доступ к серверу: проводник →
-            <span className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">\\192.168.88.1\bin</span>
-            — папка должна быть видна.
-          </li>
-          <li>
-            Всё равно не открывается — заявка в IT-поддержку: вн. 0100 или раздел «IT-поддержка» портала.
+            Всё равно не запускается — проверьте доступ к серверу МедРег через IT-поддержку:
+            вн. 0100 или раздел «IT-поддержка» портала.
           </li>
         </ol>
       </section>

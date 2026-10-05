@@ -122,7 +122,7 @@ class MailNotifier:
         )
         self.send([employee_email], f"[Портал] {kind} №{request_id}: {labels.get(new_status, new_status)}", body)
 
-    def notify_task_forwarded(self, to_user: str, title: str, due_date: str, author: str):
+    def notify_task_forwarded(self, to_user: str, title: str, due_date: str, author: str, document: str = ""):
         """Уведомление о переадресованной задаче — на почту получателя."""
         email = None
         try:
@@ -141,6 +141,7 @@ class MailNotifier:
             f"{'=' * 48}\n\n"
             f"Задача:    {title}\n"
             + (f"Срок:      {due_date}\n" if due_date else "")
+            + (f"Документ:  {document}\n" if document else "")
             + f"От:        {author}\n"
             + f"\nПринять/выполнить: {settings.PORTAL_BASE_URL}/portal (календарь-органайзер)\n"
         )

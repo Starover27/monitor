@@ -16,7 +16,7 @@ export function launchMedreg() {
 }
 
 /**
- * Содержимое .reg: регистрирует medreg:// → \\192.168.88.1\bin\MedReg.exe
+ * Содержимое .reg: регистрирует medreg:// → MEDREG_PATH
  * (в REG-файлах обратные слэши удваиваются).
  */
 const MEDREG_REG = [
@@ -27,7 +27,7 @@ const MEDREG_REG = [
   '"URL Protocol"=""',
   '',
   `[HKEY_CLASSES_ROOT\\${MEDREG_PROTOCOL}\\shell\\open\\command]`,
-  '@="\\\\\\\\192.168.88.1\\\\bin\\\\MedReg.exe"',
+  `@="${MEDREG_PATH.replace(/\\/g, '\\\\')}"`,
   '',
 ].join('\r\n');
 
@@ -42,14 +42,4 @@ export function downloadMedregLauncher() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-/** Копирует сетевой путь в буфер обмена. true при успехе. */
-export async function copyMedregPath() {
-  try {
-    await navigator.clipboard.writeText(MEDREG_PATH);
-    return true;
-  } catch {
-    return false;
-  }
 }
