@@ -1,27 +1,21 @@
 /**
  * ServiceCard — карточка одного сервиса в grid.
- * Показывает: имя, target (IP/URL), статус-индикатор, метрику или latency и время последней проверки.
+ * Показывает: имя, target (IP/URL), статус-индикатор, метрику или latency
+ * и время последней проверки. Клик открывает детали с графиком.
  */
 import {
   effectiveStatus,
-  statusColors,
-  statusBgColors,
-  statusGlows,
+  statusStyles,
+  STATUS_LABELS,
   formatRelativeTime,
   formatLatency,
   isMetricType,
   formatMetric,
 } from '../lib/api';
 
-const STATUS_LABEL = {
-  up: 'UP',
-  down: 'DOWN',
-  slow: 'DEGRADED',
-  unknown: 'UNKNOWN',
-};
-
 export default function ServiceCard({ service, onClick }) {
   const status = effectiveStatus(service);
+  const style = statusStyles[status];
   const isMetric = isMetricType(service.check_type);
   const metricText = isMetric ? formatMetric(service.last_metric_value, service.metric_unit) : null;
 
@@ -29,61 +23,48 @@ export default function ServiceCard({ service, onClick }) {
     <button
       type="button"
       onClick={() => onClick(service)}
-      className={`group relative w-full text-left rounded-lg border ${statusBgColors[status]} ${statusGlows[status]}
-        bg-cyber-panel p-5 transition-all duration-200 hover:scale-[1.02] hover:${statusGlows[status]}
-        focus:outline-none focus:ring-2 focus:ring-cyber-up/50 scanline`}
+      className={`group relative w-full rounded-2xl border p-5 text-left ${style.bgSoft} ${style.border} ${style.glow}
+        bg-cyber-panel transition-all duration-200 hover:-translate-y-0.5 hover:shadow-panel
+        focus:outline-none focus:ring-2 focus:ring-cyan-400/40`}
     >
       {/* Верхняя строка: имя + пульсирующий индикатор */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate font-mono text-lg font-semibold text-gray-100">
+          <h3 className="truncate text-base font-semibold text-white" title={service.name}>
             {service.name}
           </h3>
-          <p className="truncate text-sm text-gray-400">{service.target}</p>
+          <p className="mt-0.5 truncate font-mono text-xs text-slate-500" title={service.target}>
+            {service.target}
+          </p>
         </div>
 
-        <span className="relative flex h-3 w-3 shrink-0 mt-1.5">
+        <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0">
           {status !== 'unknown' && (
             <span
-              className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${
-                status === 'up'
-                  ? 'bg-cyber-up'
-                  : status === 'down'
-                  ? 'bg-cyber-down'
-                  : 'bg-cyber-slow'
-              }`}
+              className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${style.dot}`}
             />
           )}
-          <span
-            className={`relative inline-flex h-3 w-3 rounded-full ${
-              status === 'up'
-                ? 'bg-cyber-up'
-                : status === 'down'
-                ? 'bg-cyber-down'
-                : status === 'slow'
-                ? 'bg-cyber-slow'
-                : 'bg-gray-500'
-            }`}
-          />
+          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${style.dot}`} />
         </span>
       </div>
 
       {/* Нижняя строка: статус, метрика/latency, время */}
-      <div className="mt-4 flex items-center justify-between text-xs">
-        <span className={`font-mono font-bold uppercase tracking-wider ${statusColors[status]}`}>
-          {STATUS_LABEL[status]}
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+        <span className={`text-xs font-semibold ${style.text}`}>
+          {STATUS_LABELS[status]}
         </span>
-        <div className="flex items-center gap-3 text-gray-400 font-mono">
+        <div className="flex items-center gap-3 font-mono text-xs text-slate-400">
           {isMetric && metricText ? (
-            <span className="text-gray-200 font-bold" title="Значение метрики">
-              📊 {metricText}
+            <span className="font-semibold text-slate-200" title="Значение метрики">
+              {metricText}
             </span>
           ) : (
-            <span title="Время отклика">⚡ {formatLatency(service.last_latency_ms)}</span>
+            <span title="Время отклика">{formatLatency(service.last_latency_ms)}</span>
           )}
-          <span title="Последняя проверка">🕐 {formatRelativeTime(service.last_checked_at)}</span>
+          <span title="Последняя проверка">{formatRelativeTime(service.last_checked_at)}</span>
         </div>
       </div>
     </button>
   );
 }
+

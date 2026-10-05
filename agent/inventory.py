@@ -39,8 +39,13 @@ def scan_certificates(roots):
     inspected = 0
     for root in roots:
         base = Path(root).expanduser().resolve()
-        if not base.is_dir():
-            errors.append(f"Каталог недоступен: {base}")
+        try:
+            if not base.is_dir():
+                errors.append(f"Каталог недоступен: {base}")
+                continue
+        except OSError as exc:
+            # Недоступный UNC-путь или отказ в доступе не должен ломать весь снимок
+            errors.append(f"Каталог недоступен: {base} ({exc.strerror or exc})")
             continue
         def onerror(exc):
             if len(errors) < 999:
@@ -51,7 +56,10 @@ def scan_certificates(roots):
                 path = Path(directory, filename)
                 if path.suffix.lower() not in {".cer", ".crt", ".pem", ".der"} or path.is_symlink():
                     continue
-                resolved = path.resolve()
+                try:
+                    resolved = path.resolve()
+                except OSError:
+                    continue
                 if not resolved.is_relative_to(base) or str(resolved) in seen:
                     continue
                 seen.add(str(resolved))

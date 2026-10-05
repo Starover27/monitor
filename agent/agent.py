@@ -27,8 +27,14 @@ class MonitoringAgent:
             write_token_file(self.config_path, self.token)
         except (OSError, ValueError):
             self.logger.warning('Cannot update TOKEN.txt. Check folder permissions and configured token.')
+        from watchlist import ensure_template, watchlist_path
+        try:
+            ensure_template(watchlist_path(self.config_path))
+        except OSError:
+            self.logger.warning('Cannot create watchlist.txt template. Check folder permissions.')
         self.check_interval = self.config["check_interval"]
         self.service_map: Dict[str, int] = {}  # name -> service_id
+        self.watchlist_map: Dict[str, int] = {}  # имя Windows-службы (watchlist) -> service_id
         self.client = httpx.AsyncClient(timeout=self.config["backend"]["timeout"])
 
     def _load_config(self) -> Dict:
@@ -42,19 +48,31 @@ class MonitoringAgent:
     def _setup_logging(self):
         level = getattr(logging, self.config["logging"]["level"].upper(), logging.INFO)
         log_file = self.config["logging"].get("file")
-        
+        # Авто-ротация: при достижении размера (logging.max_mb, МБ) лог
+        # автоматически обрезается — текущий файл сменяется новым, старый удаляется.
+        max_mb = int(self.config["logging"].get("max_mb") or 10)
+
         handlers = []
         if log_file and log_file not in ("", "console", "null"):
-            handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+            try:
+                from logging.handlers import RotatingFileHandler
+                handlers.append(RotatingFileHandler(
+                    log_file, encoding="utf-8",
+                    maxBytes=max(1, max_mb) * 1024 * 1024, backupCount=1,
+                ))
+            except Exception:
+                handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
         else:
             handlers.append(logging.StreamHandler(sys.stdout))
-        
+
         logging.basicConfig(
             level=level,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=handlers,
         )
         self.logger = logging.getLogger("agent")
+        if handlers and not isinstance(handlers[0], logging.StreamHandler):
+            self.logger.info(f"Лог-файл: {log_file}, авто-обрезка при {max_mb} МБ")
 
     async def register_services(self):
         """
@@ -164,15 +182,68 @@ class MonitoringAgent:
         self.logger.error(f"❌ Не удалось отправить heartbeat после {retry_attempts} попыток")
         return False
 
+    async def _sync_watchlist_services(self, snapshot: Dict[str, Any]) -> None:
+        """
+        Регистрирует Windows-службы из watchlist на бэкенде и отправляет их
+        статусы как heartbeat. Благодаря этому службы из watchlist.txt видны
+        не только в инвентаризации, но и на странице «Службы»: карточки со
+        статусом up/down, история проверок и алерты. Новые записи watchlist
+        подхватываются автоматически — регистрация повторяется каждый цикл.
+        """
+        service_entries = snapshot.get("services") or []
+        if not service_entries:
+            return
+        hostname = snapshot.get("hostname") or "localhost"
+        try:
+            resp = await self.client.get(f"{self.backend_url}/api/services", params={"limit": 1000})
+            resp.raise_for_status()
+            existing = {s["name"]: s["id"] for s in resp.json()}
+        except Exception as e:
+            self.logger.warning(f"Не удалось получить список сервисов с бэкенда: {e}")
+            return
+        for entry in service_entries:
+            svc_name = entry.get("name")
+            if not svc_name:
+                continue
+            display = f"{svc_name} · {hostname}"
+            target = entry.get("display_name") or svc_name
+            service_id = existing.get(display)
+            if service_id is None:
+                try:
+                    payload = {"name": display, "target": target, "check_type": "windows_service", "enabled": True}
+                    resp = await self.client.post(f"{self.backend_url}/api/services", json=payload)
+                    resp.raise_for_status()
+                    service_id = resp.json()["id"]
+                    self.logger.info(f"✓ Служба watchlist '{svc_name}' зарегистрирована: '{display}', id={service_id}")
+                except Exception as e:
+                    self.logger.warning(f"Не удалось зарегистрировать службу '{svc_name}': {e}")
+                    continue
+            self.watchlist_map[svc_name] = service_id
+            status = entry.get("status")
+            running = status == "running"
+            await self.send_heartbeat({
+                "service_id": service_id,
+                "status": "up" if running else "down",
+                "latency_ms": None,
+                "error_message": None if running else (entry.get("error") or f"Состояние: {status or 'unknown'}")[:500],
+                "timestamp": self._now_iso(),
+            })
+
     async def run_check_cycle(self):
         """Одна итерация проверок всех сервисов."""
         if self.config.get("inventory", {}).get("enabled"):
             from inventory import collect
+            from watchlist import parse, merge_inventory, watchlist_path
             try:
-                snapshot = await asyncio.to_thread(collect, self.config["inventory"])
+                entries = parse(watchlist_path(self.config_path))
+                inventory_cfg = merge_inventory(self.config["inventory"], entries)
+                self._log_watchlist(inventory_cfg, entries.warnings)
+                self.config["inventory"] = inventory_cfg
+                snapshot = await asyncio.to_thread(collect, inventory_cfg)
                 response = await self.client.post(f"{self.backend_url}/api/inventory", json=snapshot,
                                                   headers={"X-Agent-Token": self.token})
                 response.raise_for_status()
+                await self._sync_watchlist_services(snapshot)
             except Exception:
                 self.logger.exception("Не удалось собрать/отправить инвентаризацию")
         tasks = [self.check_service(svc) for svc in self.config["services"]]
@@ -188,6 +259,22 @@ class MonitoringAgent:
             latency = f"{result['latency_ms']}ms" if result["latency_ms"] else "N/A"
             self.logger.info(f"{status_emoji} {svc_name}: {result['status'].upper()} | {latency}")
             await self.send_heartbeat(result)
+
+    def _log_watchlist(self, inventory_cfg: Dict[str, Any], warnings: list) -> None:
+        """Логирует список наблюдения только при первом запуске и изменениях."""
+        roots = inventory_cfg.get("certificate_roots", [])
+        services = inventory_cfg.get("windows_services", [])
+        signature = (tuple(roots), tuple(services))
+        previous = getattr(self, "_watchlist_signature", None)
+        if signature != previous:
+            self._watchlist_signature = signature
+            action = "Стартовое наблюдение" if previous is None else "Список наблюдения обновлён"
+            self.logger.info(
+                "%s: папок сертификатов=%d, служб=%d (правьте watchlist.txt рядом с программой)",
+                action, len(roots), len(services),
+            )
+        for warning in warnings:
+            self.logger.warning("watchlist.txt: %s", warning)
 
     async def run(self):
         server, connections = None, set()

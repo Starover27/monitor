@@ -1,6 +1,7 @@
 """
 API зависимости для эндпоинтов
 """
+import secrets
 from typing import Generator
 from fastapi import Header, HTTPException, status
 from sqlalchemy.orm import Session
@@ -17,17 +18,17 @@ def verify_agent_token(
     x_agent_token: str = Header(..., description="Токен аутентификации агента")
 ) -> str:
     """
-    Проверка токена агента.
-    В MVP - простая проверка на непустоту.
-    В продакшене: JWT или хранение токенов в БД.
+    Проверка токена агента: сверка с общим SECRET_KEY сервера
+    (та же логика, что в /api/inventory и /api/discovery).
     """
-    if not x_agent_token or len(x_agent_token.strip()) == 0:
+    if (
+        settings.SECRET_KEY == "your-secret-key-change-in-production"
+        or not secrets.compare_digest(x_agent_token, settings.SECRET_KEY)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing agent token",
+            detail="Неверный или отсутствующий токен агента (должен совпадать с SECRET_KEY сервера)",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # TODO: Добавить реальную валидацию токена из БД
-    # Сейчас принимаем любой непустой токен
     return x_agent_token

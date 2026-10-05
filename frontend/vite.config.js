@@ -8,7 +8,11 @@ export default defineConfig({
     proxy: {
       // Проксируем запросы к бэкенду FastAPI, чтобы избежать CORS в dev
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:80',
+        changeOrigin: true,
+      },
+      '/static': {
+        target: 'http://localhost:80',
         changeOrigin: true,
       },
     },

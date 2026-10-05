@@ -53,4 +53,4 @@ def report(payload: Snapshot, x_agent_token: str = Header(...), db: Session = De
 @router.get("")
 def hosts(db: Session = Depends(get_db)):
     return [{**row.payload, "received_at": row.received_at.replace(tzinfo=timezone.utc).isoformat()}
-            for row in db.query(HostSnapshot).order_by(HostSnapshot.host_id).all()]
+            for row in db.query(HostSnapshot).order_by(HostSnapshot.received_at.desc()).all()]

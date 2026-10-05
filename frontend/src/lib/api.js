@@ -11,6 +11,7 @@ export const SLOW_THRESHOLD_MS = 500;
 // URL эндпоинтов
 export const servicesUrl = () => `${API_BASE}/api/services`;
 export const groupsUrl = () => `${API_BASE}/api/groups`;
+export const alertsUrl = (limit = 100) => `${API_BASE}/api/alerts?limit=${limit}`;
 
 export async function saveGroup(method, name, newName) {
   const res = await fetch(`${groupsUrl()}${method === 'POST' ? '' : `?name=${encodeURIComponent(name)}`}`, {
@@ -102,34 +103,56 @@ export function effectiveStatus(service) {
 }
 
 /**
- * Цвета для статусов (Tailwind classes)
+ * Русские подписи статусов
  */
-export const statusColors = {
-  up: 'text-cyber-up',
-  down: 'text-cyber-down',
-  slow: 'text-cyber-slow',
-  unknown: 'text-gray-500',
-};
-
-export const statusBgColors = {
-  up: 'bg-cyber-up/10 border-cyber-up',
-  down: 'bg-cyber-down/10 border-cyber-down',
-  slow: 'bg-cyber-slow/10 border-cyber-slow',
-  unknown: 'bg-gray-800/10 border-gray-600',
-};
-
-export const statusGlows = {
-  up: 'glow-up',
-  down: 'glow-down',
-  slow: 'glow-slow',
-  unknown: '',
+export const STATUS_LABELS = {
+  up: 'Работает',
+  down: 'Недоступен',
+  slow: 'Медленно',
+  unknown: 'Нет данных',
 };
 
 /**
- * Форматирует ISO timestamp в относительное время ("5s ago", "2m ago")
+ * Готовые (статические) наборы Tailwind-классов для статусов.
+ * ВАЖНО: классы должны быть прописаны литералами, иначе Tailwind JIT
+ * их не найдёт и не сгенерирует.
+ */
+export const statusStyles = {
+  up: {
+    dot: 'bg-emerald-400',
+    text: 'text-emerald-300',
+    border: 'border-emerald-500/40',
+    bgSoft: 'bg-emerald-500/10',
+    glow: 'glow-up',
+  },
+  down: {
+    dot: 'bg-rose-400',
+    text: 'text-rose-300',
+    border: 'border-rose-500/40',
+    bgSoft: 'bg-rose-500/10',
+    glow: 'glow-down',
+  },
+  slow: {
+    dot: 'bg-amber-400',
+    text: 'text-amber-300',
+    border: 'border-amber-500/40',
+    bgSoft: 'bg-amber-500/10',
+    glow: 'glow-slow',
+  },
+  unknown: {
+    dot: 'bg-slate-500',
+    text: 'text-slate-400',
+    border: 'border-slate-600/60',
+    bgSoft: 'bg-slate-500/10',
+    glow: '',
+  },
+};
+
+/**
+ * Форматирует ISO timestamp в относительное время ("5 сек назад", "2 мин назад")
  */
 export function formatRelativeTime(isoString) {
-  if (!isoString) return 'never';
+  if (!isoString) return 'никогда';
   const now = Date.now();
   const then = new Date(isoString).getTime();
   const diff = Math.max(0, now - then);
@@ -139,16 +162,47 @@ export function formatRelativeTime(isoString) {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return `${seconds}s ago`;
+  const plural = (n, forms) => {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return forms[0];
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return forms[1];
+    return forms[2];
+  };
+
+  if (days > 0) return `${days} ${plural(days, ['день', 'дня', 'дней'])} назад`;
+  if (hours > 0) return `${hours} ${plural(hours, ['час', 'часа', 'часов'])} назад`;
+  if (minutes > 0) return `${minutes} ${plural(minutes, ['минуту', 'минуты', 'минут'])} назад`;
+  return `${seconds} ${plural(seconds, ['секунду', 'секунды', 'секунд'])} назад`;
 }
 
 /**
  * Форматирует латентность
  */
 export function formatLatency(ms) {
-  if (ms == null) return 'N/A';
-  return `${ms}ms`;
+  if (ms == null) return '—';
+  return `${ms} мс`;
+}
+
+/**
+ * Форматирует байты в человекочитаемый вид
+ */
+export function formatBytes(n) {
+  if (!Number.isFinite(n)) return '—';
+  const units = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+  let value = n;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  return `${value.toFixed(value >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+/**
+ * Форматирует дату-время для ru-RU
+ */
+export function formatDateTime(v, withTime = true) {
+  if (!v) return '—';
+  return new Date(v).toLocaleString('ru-RU', withTime ? {} : { day: '2-digit', month: '2-digit', year: 'numeric' });
 }

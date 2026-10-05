@@ -6,4 +6,6 @@ pydantic-settings==2.7.1
 python-dotenv==1.0.1
 httpx==0.27.2
 apscheduler==3.11.0
+# PostgreSQL (для DATABASE_URL=postgresql+psycopg://...)
+psycopg[binary]==3.2.3
 

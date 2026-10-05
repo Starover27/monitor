@@ -25,21 +25,30 @@ if (-not (Test-Path $envPath)) {
     $token = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
     "SECRET_KEY=$token`nDEBUG=false" | Set-Content $envPath -Encoding ASCII
 }
-$listening = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
-if (-not ($listening | Where-Object LocalPort -eq 8000)) {
-    Start-Process $python -ArgumentList '-m uvicorn app.main:app --host 0.0.0.0 --port 8000' -WorkingDirectory (Join-Path $root 'backend') | Out-Null
+
+# Build фронта (если ещё не собран): бэкенд раздаёт портал с порта 80 (без номера порта в адресе).
+$distDir = Join-Path $root 'frontend\dist'
+if (-not (Test-Path (Join-Path $distDir 'index.html'))) {
+    Write-Host "Building frontend for production..."
+    Push-Location (Join-Path $root 'frontend')
+    try {
+        & npm.cmd run build
+        Check-Command
+    } finally { Pop-Location }
 }
-if (-not ($listening | Where-Object LocalPort -eq 5173)) {
-    Start-Process 'cmd.exe' -ArgumentList '/c npm.cmd run dev -- --host 0.0.0.0 --strictPort' -WorkingDirectory (Join-Path $root 'frontend') | Out-Null
+
+$listening = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
+if (-not ($listening | Where-Object LocalPort -eq 80)) {
+    Start-Process $python -ArgumentList '-m uvicorn app.main:app --host 0.0.0.0 --port 80' -WorkingDirectory (Join-Path $root 'backend') | Out-Null
 }
 $ready = $false
 for ($i = 0; $i -lt 30; $i++) {
     try {
-        $health = Invoke-RestMethod 'http://127.0.0.1:8000/health' -TimeoutSec 2
-        $page = Invoke-WebRequest 'http://127.0.0.1:5173' -UseBasicParsing -TimeoutSec 2
-        if ($health.status -eq 'ok' -and $page.StatusCode -eq 200) { $ready = $true; break }
+        $health = Invoke-RestMethod 'http://127.0.0.1/health' -TimeoutSec 2
+        if ($health.status -eq 'ok') { $ready = $true; break }
     } catch { Start-Sleep -Seconds 1 }
 }
-if (-not $ready) { throw 'Server did not start. Check the backend/frontend windows and ports 8000 and 5173.' }
-Start-Process 'http://127.0.0.1:5173/inventory'
-Write-Host 'Monitor is ready. Close the backend/frontend windows to stop it.'
+if (-not $ready) { throw 'Backend did not start on port 80. Check the backend window.' }
+Start-Process 'http://127.0.0.1/inventory'
+Write-Host "Monitor is ready - portal on http://127.0.0.1 (port 80, no port number in URL)"
+Write-Host 'Close the backend window to stop it.'

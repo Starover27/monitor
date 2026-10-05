@@ -3,7 +3,7 @@
  * Экспортирует DetailsContent (общий), ServiceDetailsModal (модалка) и
  * ServiceDetailsPage (страница /service/:id).
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
@@ -12,20 +12,21 @@ import { useParams, Link } from 'react-router-dom';
 import { useFetch } from '../hooks/useFetch';
 import {
   historyUrl, servicesUrl, formatLatency, formatRelativeTime,
-  effectiveStatus, SLOW_THRESHOLD_MS,
+  effectiveStatus, SLOW_THRESHOLD_MS, statusStyles, STATUS_LABELS,
 } from '../lib/api';
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded border border-cyber-border bg-cyber-panel px-3 py-2 text-xs font-mono shadow-lg">
-      <div className="text-gray-400">{new Date(d.checked_at).toLocaleString()}</div>
-      <div className={d.status === 'up' ? 'text-cyber-up' : 'text-cyber-down'}>
-        status: {d.status} {d.latency_ms != null ? `· ${d.latency_ms}ms` : ''}
+    <div className="card px-3 py-2 text-xs shadow-panel">
+      <div className="text-slate-500">{new Date(d.checked_at).toLocaleString('ru-RU')}</div>
+      <div className={d.status === 'up' ? 'text-emerald-300' : 'text-rose-300'}>
+        {d.status === 'up' ? 'Работает' : 'Недоступен'}
+        {d.latency_ms != null ? ` · ${d.latency_ms} мс` : ''}
       </div>
       {d.error_message && (
-        <div className="mt-1 max-w-[260px] break-words text-cyber-down">{d.error_message}</div>
+        <div className="mt-1 max-w-[260px] break-words text-rose-300">{d.error_message}</div>
       )}
     </div>
   );
@@ -33,21 +34,17 @@ function ChartTooltip({ active, payload }) {
 
 function Stat({ label, value, className }) {
   return (
-    <div className="rounded-lg border border-cyber-border bg-cyber-bg p-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`font-mono text-lg font-bold ${className}`}>{value}</div>
+    <div className="rounded-xl border border-cyber-border bg-slate-900/50 p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className={`mt-0.5 font-mono text-lg font-bold ${className}`}>{value}</div>
     </div>
   );
 }
 
-const statusPill = (s) =>
-  s === 'up'
-    ? 'border-cyber-up text-cyber-up bg-cyber-up/10'
-    : s === 'down'
-    ? 'border-cyber-down text-cyber-down bg-cyber-down/10'
-    : s === 'slow'
-    ? 'border-cyber-slow text-cyber-slow bg-cyber-slow/10'
-    : 'border-gray-600 text-gray-400';
+const statusPill = (s) => {
+  const st = statusStyles[s];
+  return `${st.border} ${st.text} ${st.bgSoft}`;
+};
 
 
 export default function DetailsContent({ service }) {
@@ -77,65 +74,71 @@ export default function DetailsContent({ service }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="font-mono text-xl font-bold text-white">{service.name}</h2>
-          <p className="text-sm text-gray-400">{service.target} · {service.check_type ?? 'http'}</p>
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold text-white">{service.name}</h2>
+          <p className="mt-0.5 truncate font-mono text-sm text-slate-500" title={service.target}>
+            {service.target} · {service.check_type ?? 'http'}
+          </p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-mono font-bold uppercase tracking-wider ${statusPill(st)}`}>
-          {st}
+        <span className={`shrink-0 rounded-full border px-3.5 py-1 text-xs font-semibold ${statusPill(st)}`}>
+          {STATUS_LABELS[st]}
         </span>
       </div>
 
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Uptime 24h" value={`${stats.uptime}%`} className="text-cyber-up" />
-          <Stat label="Avg latency" value={formatLatency(stats.avg)} className="text-white" />
-          <Stat label="Max latency" value={formatLatency(stats.max)} className="text-cyber-slow" />
-          <Stat label="Checks" value={`${stats.total} (${stats.down} down)`} className="text-white" />
+          <Stat label="Доступность, 24 ч" value={`${stats.uptime}%`} className="text-emerald-300" />
+          <Stat label="Средний отклик" value={formatLatency(stats.avg)} className="text-white" />
+          <Stat label="Макс. отклик" value={formatLatency(stats.max)} className="text-amber-300" />
+          <Stat label="Проверок (падений)" value={`${stats.total} (${stats.down})`} className="text-white" />
         </div>
       )}
 
-      <div className="rounded-lg border border-cyber-border bg-cyber-bg p-4">
-        <h3 className="mb-3 font-mono text-sm font-semibold text-gray-300">
+      <div className="card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-slate-300">
           Время отклика — последние 24 часа
         </h3>
-        {loading && <div className="py-12 text-center text-sm text-gray-500">Загрузка истории…</div>}
-        {error && <div className="py-6 text-center text-sm text-cyber-down">Ошибка: {error}</div>}
+        {loading && (
+          <div className="flex justify-center py-12">
+            <div className="skeleton h-40 w-3/4" />
+          </div>
+        )}
+        {error && <div className="py-6 text-center text-sm text-rose-300">Ошибка: {error}</div>}
         {!loading && !error && chartData.length === 0 && (
-          <div className="py-12 text-center text-sm text-gray-500">Нет данных за 24 часа</div>
+          <div className="py-12 text-center text-sm text-slate-500">Нет данных за 24 часа</div>
         )}
         {!loading && !error && chartData.length > 0 && (
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid stroke="#1e2a3a" strokeDasharray="3 3" />
-                <XAxis dataKey="time" tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#1e2a3a' }} minTickGap={24} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#1e2a3a' }} unit="ms" width={50} />
+                <CartesianGrid stroke="#1e2a3d" strokeDasharray="3 3" />
+                <XAxis dataKey="time" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#1e2a3d' }} minTickGap={24} />
+                <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#1e2a3d' }} unit=" мс" width={54} />
                 <Tooltip content={<ChartTooltip />} />
-                <ReferenceLine y={SLOW_THRESHOLD_MS} stroke="#facc15" strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="latency" stroke="#22d3ee" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
+                <ReferenceLine y={SLOW_THRESHOLD_MS} stroke="#fbbf24" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="latency" stroke="#34d399" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         )}
-        <p className="mt-2 text-xs text-gray-500">
-          Разрывы линии = DOWN. Жёлтый пунктир = порог degraded ({SLOW_THRESHOLD_MS}ms).
+        <p className="mt-2 text-xs text-slate-500">
+          Разрывы линии — недоступность. Жёлтый пунктир — порог «медленно» ({SLOW_THRESHOLD_MS} мс).
         </p>
       </div>
 
       {Array.isArray(history) && history.length > 0 && (
-        <div className="rounded-lg border border-cyber-border bg-cyber-bg">
-          <h3 className="border-b border-cyber-border px-4 py-2 font-mono text-sm font-semibold text-gray-300">
+        <div className="card overflow-hidden">
+          <h3 className="border-b border-cyber-border px-4 py-2.5 text-sm font-semibold text-slate-300">
             Последние проверки
           </h3>
           <div className="max-h-48 divide-y divide-cyber-border/50 overflow-y-auto">
             {history.slice(0, 20).map((h) => (
-              <div key={h.id} className="flex items-center justify-between px-4 py-2 text-xs font-mono">
-                <span className={h.status === 'up' ? 'text-cyber-up' : 'text-cyber-down'}>
-                  ● {h.status.toUpperCase()}
+              <div key={h.id} className="flex items-center justify-between gap-3 px-4 py-2 font-mono text-xs">
+                <span className={h.status === 'up' ? 'text-emerald-300' : 'text-rose-300'}>
+                  {h.status === 'up' ? 'Работает' : 'Недоступен'}
                 </span>
-                <span className="text-gray-400">{formatLatency(h.latency_ms)}</span>
-                <span className="text-gray-500">{formatRelativeTime(h.checked_at)}</span>
+                <span className="text-slate-400">{formatLatency(h.latency_ms)}</span>
+                <span className="text-slate-500">{formatRelativeTime(h.checked_at)}</span>
               </div>
             ))}
           </div>
@@ -146,17 +149,37 @@ export default function DetailsContent({ service }) {
 }
 
 export function ServiceDetailsModal({ service, onClose }) {
+  // Закрытие по Escape + блокировка прокрутки фона, пока модалка открыта
+  useEffect(() => {
+    if (!service) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previous;
+    };
+  }, [service, onClose]);
+
   if (!service) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-cyber-border bg-cyber-panel p-6 shadow-glow">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Детали службы ${service.name}`}
+    >
+      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="card animate-fade-in relative max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full border border-cyber-border bg-cyber-bg px-2 py-1 text-sm text-gray-400 hover:text-white"
+          className="absolute right-4 top-4 rounded-lg border border-cyber-border bg-slate-900/70 px-2.5 py-1 text-xs text-slate-400 transition-colors hover:text-white"
           aria-label="Закрыть"
         >
-          ✕
+          Закрыть
         </button>
         <DetailsContent service={service} />
       </div>
@@ -172,19 +195,19 @@ export function ServiceDetailsPage() {
 
   if (!service) {
     return (
-      <div className="mx-auto max-w-3xl p-6">
-        <Link to="/" className="text-sm text-cyber-up hover:underline">← Назад к дашборду</Link>
-        <div className="mt-6 rounded-lg border border-cyber-border bg-cyber-panel p-8 text-center text-gray-400">
-          {services ? `Сервис #${id} не найден` : 'Загрузка…'}
+      <div className="animate-fade-in mx-auto max-w-3xl">
+        <Link to="/" className="link text-sm">← Назад к обзору</Link>
+        <div className="card mt-4 p-8 text-center text-slate-400">
+          {services ? `Служба #${id} не найдена` : 'Загрузка…'}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <Link to="/" className="text-sm text-cyber-up hover:underline">← Назад к дашборду</Link>
-      <div className="mt-4 rounded-xl border border-cyber-border bg-cyber-panel p-6 shadow-glow">
+    <div className="animate-fade-in mx-auto max-w-3xl">
+      <Link to="/" className="link text-sm">← Назад к обзору</Link>
+      <div className="card mt-4 p-6">
         <DetailsContent service={service} />
       </div>
     </div>

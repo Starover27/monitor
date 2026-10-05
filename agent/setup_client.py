@@ -22,7 +22,7 @@ def main(config_path=None):
     window.configure(padx=24, pady=20)
     fields = {}
     for key, label, value in [
-        ("url", "Адрес сервера (для удалённого подключения используйте HTTPS)", backend.get("url", "http://127.0.0.1:8000")),
+        ("url", "Адрес сервера (порт 80, для удалённого подключения используйте HTTPS)", backend.get("url", "http://127.0.0.1:80")),
         ("token", "Токен — значение SECRET_KEY сервера", backend.get("token", "")),
         ("root", "Папка сертификатов (включая все подпапки)", next(iter(inventory.get("certificate_roots", [])), "")),
         ("services", "Системные имена Windows-служб через запятую", ", ".join(inventory.get("windows_services", ["W32Time", "Spooler"]))),
@@ -51,6 +51,14 @@ def main(config_path=None):
                 if selected:
                     fields["root"].set(selected)
             tk.Button(window, text="Выбрать папку…", command=browse).pack(anchor="e", pady=4)
+
+    tk.Label(
+        window,
+        text="Подсказка: рядом с программой создан файл watchlist.txt — туда можно\n"
+             "построчно дописывать папки сертификатов и имена служб; изменения\n"
+             "подхватываются автоматически, без перезапуска клиента.",
+        anchor="w", justify="left", fg="#5a6b7f",
+    ).pack(fill="x", pady=(14, 0))
 
     def save():
         nonlocal saved

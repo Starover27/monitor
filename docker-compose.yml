@@ -1,4 +1,21 @@
 services:
+  # --- PostgreSQL ---
+  db:
+    image: postgres:16-alpine
+    container_name: monitor-db
+    environment:
+      POSTGRES_USER: monitor
+      POSTGRES_PASSWORD: monitor_secret
+      POSTGRES_DB: portal
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor -d portal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # --- Backend (FastAPI) ---
   backend:
     build:
@@ -8,6 +25,8 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Для работы на PostgreSQL — раскомментировать и установить psycopg в backend/requirements.txt:
+      # DATABASE_URL=postgresql+psycopg://monitor:monitor_secret@db:5432/portal
       - DATABASE_URL=sqlite:///./data/monitoring.db
       - DEBUG=false
       - ALERT_CONSECUTIVE_FAILURES=2
@@ -20,6 +39,9 @@ services:
     volumes:
       # Монтируем только каталог с БД, чтобы не перекрывать код образа
       - backend-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8000/health')"]
@@ -64,6 +86,7 @@ services:
 
 volumes:
   backend-data:
+  pg-data:
 
 networks:
   default:

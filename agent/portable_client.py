@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from agent import MonitoringAgent
 from setup_client import main as configure
+from watchlist import ensure_template, watchlist_path
 
 
 def main():
@@ -40,9 +41,11 @@ def main():
         window.withdraw()
         window.update()
         window.destroy()
-        print(f"SELF-TEST OK: GUI, imports, inventory; disks={len(snapshot['disks'])}")
+        template = ensure_template(watchlist_path(base / 'config.yaml'))
+        print(f"SELF-TEST OK: GUI, imports, inventory; disks={len(snapshot['disks'])}, watchlist={template.name}")
         return
     config = base / 'config.yaml'
+    ensure_template(watchlist_path(config))
     if args.configure or not config.exists():
         if not configure(config):
             return

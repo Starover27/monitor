@@ -2,62 +2,246 @@
 @tailwind components;
 @tailwind utilities;
 
-.overview-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 32px;
-  border: 1px solid #25344b;
-  border-radius: 20px;
-  background: radial-gradient(ellipse at top right, #153e50 0%, transparent 65%), #101827;
-}
-.group-panel { background: linear-gradient(135deg, #121c2b, #0d1420); box-shadow: 0 12px 30px #00000018; }
-.monitor-input { background: #111c2d; border: 1px solid #334155; border-radius: 10px; padding: 10px 14px; color: #e2e8f0; max-width: 100%; }
-.monitor-input:focus-visible, button:focus-visible { outline: 2px solid #22d3ee; outline-offset: 3px; }
-.monitor-button { padding: 10px 18px; border-radius: 10px; background: #22d3ee; color: #08202b; font-weight: 600; }
-.bg-cyan-400 { background-color: #22d3ee; }
-.bg-amber-400 { background-color: #fbbf24; }
-.bg-rose-400 { background-color: #fb7185; }
-.bg-emerald-400 { background-color: #34d399; }
-.text-cyan-300 { color: #67e8f9; }
-.text-amber-300 { color: #fcd34d; }
-.text-rose-300 { color: #fda4af; }
-.text-emerald-300 { color: #6ee7b7; }
-.bg-cyan-400\/10 { background-color: rgb(34 211 238 / .1); }
-.bg-amber-400\/10 { background-color: rgb(251 191 36 / .1); }
-.bg-rose-400\/10 { background-color: rgb(251 113 133 / .1); }
-button:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
-@media (max-width: 640px) { .overview-banner { padding: 22px; flex-wrap: wrap; } }
-
+/* ============================================================
+   Дизайн-система: базовые стили
+   ============================================================ */
 @layer base {
   * {
     @apply border-cyber-border;
   }
-  
+
+  html {
+    color-scheme: light;
+  }
+
+  /* Портал открывается на белом фоне; тёмная тема мониторинга задаётся в Layout */
   body {
-    @apply bg-cyber-bg text-gray-100 font-sans antialiased;
+    @apply bg-white text-slate-800 font-sans antialiased;
+    font-size: 16.5px;
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    @apply bg-[#e63a2e]/20 text-slate-900;
+  }
+
+  /* Аккуратные скроллбары */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    background-color: #94a3b8;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #7c8ba1;
+  }
+
+  button:disabled,
+  select:disabled,
+  input:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}
+
+/* ============================================================
+   Переиспользуемые компоненты
+   ============================================================ */
+@layer components {
+  /* Панель-карточка */
+  .card {
+    @apply rounded-2xl border border-cyber-border bg-cyber-panel shadow-panel;
+  }
+
+  /* Поля ввода */
+  .monitor-input {
+    @apply max-w-full rounded-xl border border-cyber-border bg-slate-900/60 px-3.5 py-2.5
+      text-base text-slate-100 placeholder:text-slate-500
+      transition-colors duration-150 focus:border-cyan-400/60 focus:bg-slate-900
+      focus:outline-none focus:ring-2 focus:ring-cyan-400/20;
+  }
+
+  /* Основная кнопка */
+  .monitor-button {
+    @apply rounded-xl bg-gradient-to-b from-cyan-400 to-cyan-500 px-4 py-2.5
+      text-sm font-semibold text-slate-950 shadow-glow
+      transition-all duration-150 hover:from-cyan-300 hover:to-cyan-400
+      active:translate-y-px disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* Живые кнопки портала (светлая тема) */
+  .btn {
+    @apply relative inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+      text-sm font-semibold outline-none transition-all duration-200
+      focus-visible:ring-2 focus-visible:ring-[#e63a2e]/40 active:translate-y-px
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn overflow-hidden bg-gradient-to-br from-[#ff6b5c] to-[#e63a2e] text-white
+      shadow-[0_6px_16px_-6px_rgba(230,58,46,0.6)]
+      hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-6px_rgba(230,58,46,0.65)]
+      active:translate-y-0 active:shadow-[0_4px_10px_-6px_rgba(230,58,46,0.5)];
+  }
+  .btn-primary::before {
+    content: '';
+    @apply absolute inset-0 -translate-x-full bg-gradient-to-r
+      from-transparent via-white/25 to-transparent transition-transform duration-500;
+  }
+  .btn-primary:hover::before {
+    @apply translate-x-full;
+  }
+  .btn-soft {
+    @apply btn border border-slate-200 bg-white text-[#2b3a4b] shadow-sm
+      hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50
+      hover:shadow-[0_8px_20px_-10px_rgba(43,58,75,0.35)];
+  }
+  .btn-ghost-light {
+    @apply btn border border-white/20 bg-white/10 text-white backdrop-blur
+      hover:border-white/40 hover:bg-white/20 hover:-translate-y-0.5;
+  }
+
+  /* Вторичная (приглушённая) кнопка */
+  .btn-ghost {
+    @apply rounded-xl border border-cyber-border bg-slate-900/50 px-4 py-2.5
+      text-sm font-medium text-slate-300 transition-colors duration-150
+      hover:border-slate-600 hover:bg-slate-800/70 hover:text-white
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* Скелетон загрузки */
+  .skeleton {
+    @apply relative overflow-hidden rounded-xl bg-slate-800/70;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite]
+      bg-gradient-to-r from-transparent via-white/5 to-transparent;
+  }
+
+  /* Ссылка-действие с подчёркиванием при наведении */
+  .link {
+    @apply text-cyan-300 transition-colors hover:text-cyan-200 hover:underline underline-offset-4;
   }
 }
 
 @layer utilities {
+  /* Мягкое свечение по статусу */
   .glow-up {
-    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
+    box-shadow: 0 0 18px rgba(52, 211, 153, 0.14), inset 0 0 24px rgba(52, 211, 153, 0.05);
   }
-  
   .glow-down {
-    box-shadow: 0 0 15px rgba(244, 63, 94, 0.4);
+    box-shadow: 0 0 18px rgba(251, 113, 133, 0.18), inset 0 0 24px rgba(251, 113, 133, 0.05);
   }
-  
   .glow-slow {
-    box-shadow: 0 0 15px rgba(250, 204, 21, 0.4);
+    box-shadow: 0 0 18px rgba(251, 191, 36, 0.14), inset 0 0 24px rgba(251, 191, 36, 0.05);
   }
-  
-  .scanline {
-    background: linear-gradient(
-      transparent 50%,
-      rgba(255, 255, 255, 0.02) 50%
-    );
-    background-size: 100% 4px;
+}
+
+/* ============================================================
+   «Живые» кнопки и интерактив (глобально, обе темы)
+   ============================================================ */
+@layer components {
+  /* Пункт меню — приподнимается при наведении */
+  .nav-link {
+    @apply relative rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200;
   }
+
+  /* Любая кнопка портала: мягкий подъём + тень */
+  .portal-btn {
+    @apply transition-all duration-200 will-change-transform;
+  }
+  .portal-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+  }
+  .portal-btn:not(:disabled):active {
+    transform: translateY(0) scale(0.98);
+  }
+  .portal-btn:focus-visible {
+    outline: 2px solid rgba(230, 58, 46, 0.45);
+    outline-offset: 2px;
+  }
+
+  /* Блестящий эффект для акцентных кнопок (светлая тема) */
+  .btn-shine {
+    @apply relative overflow-hidden;
+  }
+  .btn-shine::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 -translate-x-full
+      bg-gradient-to-r from-transparent via-white/25 to-transparent
+      transition-transform duration-500;
+  }
+  .btn-shine:hover::after {
+    @apply translate-x-full;
+  }
+
+  /* Карточки — живой отклик на наведение */
+  .lift {
+    @apply transition-all duration-200 will-change-transform;
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px -12px rgba(15, 23, 42, 0.25);
+  }
+}
+
+/* ============================================================
+   WYSIWYG-контент новостей (news-rich): красивая типографика
+   ============================================================ */
+.news-rich {
+  word-break: break-word;
+}
+.news-rich img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+  display: block;
+}
+.news-rich p {
+  margin: 0.35rem 0;
+}
+.news-rich h1 { font-size: 1.25rem; font-weight: 700; margin: 0.6rem 0 0.3rem; color: #1f2937; }
+.news-rich h2 { font-size: 1.1rem; font-weight: 700; margin: 0.5rem 0 0.25rem; color: #1f2937; }
+.news-rich h3 { font-size: 1rem; font-weight: 600; margin: 0.4rem 0 0.2rem; color: #1f2937; }
+.news-rich ul, .news-rich ol {
+  margin: 0.35rem 0 0.35rem 1.25rem;
+  padding: 0;
+}
+.news-rich ul { list-style: disc; }
+.news-rich ol { list-style: decimal; }
+.news-rich li { margin: 0.15rem 0; }
+.news-rich a { color: #e63a2e; text-decoration: underline; text-underline-offset: 2px; }
+.news-rich blockquote {
+  border-left: 3px solid #e63a2e;
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: #475569;
+  font-style: italic;
+}
+.news-rich table { border-collapse: collapse; margin: 0.5rem 0; }
+.news-rich th, .news-rich td { border: 1px solid #e2e8f0; padding: 0.35rem 0.6rem; }
+.news-rich th { background: #f1f5f9; font-weight: 600; }
+.news-rich hr { border: none; border-top: 1px solid #e2e8f0; margin: 0.75rem 0; }
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Бегущая полоска на экране загрузки портала */
+@keyframes login-bar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+.login-bar {
+  animation: login-bar 1.2s ease-in-out infinite;
 }

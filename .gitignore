@@ -28,4 +28,24 @@ agent/config.local.yaml
 
 # --- Логи и артефакты сборки ---
 *.log
+*.err
 *.spec.bak
+
+# --- Портал: уведомления и прочее ---
+backend/outbox/
+shots/
+*.eml
+
+# --- mTLS: CA-ключи и сертификаты (создаются автоматически при старте) ---
+ca/
+backend/ca/
+
+# --- Клиент monic: бинарник, токен и локальный конфиг (секреты) ---
+monic/*.exe
+monic/TOKEN.txt
+monic/config.yaml
+
+# --- Одноразовые документы и скриншоты ---
+*.docx
+*.pdf
+query

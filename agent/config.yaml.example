@@ -3,7 +3,7 @@
 
 # --- Бэкенд (сервер) ---
 backend:
-  url: "http://192.168.1.100:8000"   # базовый адрес FastAPI-сервера
+  url: "http://192.168.1.100"   # базовый адрес FastAPI-сервера (порт 80)
   token: "change-me-shared-secret"    # значение заголовка X-Agent-Token
   timeout: 10                          # таймаут HTTP-запросов к бэкенду, сек
   retry_attempts: 3                    # кол-во попыток отправить heartbeat
@@ -35,6 +35,7 @@ check_timeout: 5                         # таймаут tcp/http/icmp пров
 logging:
   level: "INFO"                          # DEBUG | INFO | WARNING | ERROR
   file: "agent.log"                      # путь к файлу лога; пусто/"console" -> stdout
+  max_mb: 10                             # авто-обрезка: лог сменяется новым при достижении размера (МБ)
 
 # --- Список проверяемых сервисов ---
 # type: tcp | http | https | icmp | disk | cpu | memory | network
