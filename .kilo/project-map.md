@@ -109,6 +109,7 @@ D:\Projects\monitor/
 - `/monitor` — Dashboard (host cards)
 - `/monitor/assets` — Asset accounting
 - `/monitor/agent` — Agent build + manual add + network scan
+- `/monitor/scanner` — Network scanner (separate page, admin-only)
 - `/inventory` — Agent inventory list
 - `/inventory/:hostId` — Agent inventory detail
 - `/portal/admin` — Admin panel
@@ -131,3 +132,7 @@ D:\Projects\monitor/
 - Agent startup: `_send_ping()` uses psutil with fallback to `socket.getaddrinfo`; `_send_inventory()` retries 3x
 - Agent Windows service: `service_windows.py` wraps `MonitoringAgent.run()`; logs to `agent-service.log`
 - Agent config: `backend.url` must point to server (port 80), `backend.token` must equal server `SECRET_KEY`
+- Agent networking: httpx proxy bypass required if system proxy is set (`proxies="http://"` in AsyncClient); otherwise localhost requests get 503 from proxy
+- Discovery: admin-scan endpoint for manual network scans from Agent page; agent auto-responds on TCP 19443
+- Scanner: separate page `/monitor/scanner` (dark monitoring, admin-only), replaces inline DiscoveryPanel in Inventory.jsx
+- Analytics: portal-only (`/portal/analytics`), removed from monitoring routes and Dashboard

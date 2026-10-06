@@ -333,12 +333,32 @@ def update_backup_schedule(payload: dict, admin=Depends(require_admin), db: Sess
                 value = str(max(1, int(value)))
             except (TypeError, ValueError):
                 value = "5"
+        elif key == "BACKUP_SCHEDULE_CRON":
+            # базовая валидация cron: 5 полей, каждая — число/*/диапазон
+            import re as _re
+            cron = str(value or "").strip()
+            if not _re.fullmatch(r"[\d*/,-]+(\s+[\d*/,-]+){4}", cron):
+                raise HTTPException(400, "Некорректный cron (ожидалось 5 полей, напр. '0 2 * * *')")
+            value = cron
         row = db.query(AppSetting).filter(AppSetting.key == key).first()
         if row:
             row.value = str(value)
         else:
             db.add(AppSetting(key=key, value=str(value)))
     db.commit()
+    # применяем расписание сразу, без перезапуска сервера
+    try:
+        from app.main import scheduler as _scheduler
+        from app.services.backup_scheduler import register_backup_job
+        if _scheduler and _scheduler.running:
+            try:
+                _scheduler.remove_job("auto_backup")
+            except Exception:
+                pass
+            register_backup_job(_scheduler)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Не удалось перепланировать автобэкап: %s", e)
     return {"status": "ok"}
 
 

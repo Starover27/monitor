@@ -151,5 +151,27 @@ class MailNotifier:
         if settings.NOTIFY_EMAIL_TO:
             self.send([settings.NOTIFY_EMAIL_TO], f"[Задача] {title} — от {author} → {to_user}", body)
 
+    def notify_task_accepted(self, to_user: str, title: str, accepted: bool, by: str):
+        """Уведомление автору: получатель принял/отклонил задачу."""
+        email = None
+        try:
+            from app.core.database import SessionLocal
+            from app.models import User
+            db = SessionLocal()
+            try:
+                u = db.query(User).filter((User.full_name == to_user) | (User.username == to_user)).first()
+                email = u.email if u else None
+            finally:
+                db.close()
+        except Exception:
+            email = None
+        verb = "принял(а)" if accepted else "отклонил(а)"
+        body = (
+            f"{by} {verb} задачу «{title}»\n"
+            f"\nОткрыть задачи: {settings.PORTAL_BASE_URL}/portal (календарь-органайзер)\n"
+        )
+        if email:
+            self.send([email], f"[Задача] {title} — {by} {verb}", body)
+
 
 mail_notifier = MailNotifier()

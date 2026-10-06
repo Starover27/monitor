@@ -123,6 +123,15 @@ def update_task(task_id: int, payload: TaskUpdate, me: User = Depends(get_curren
         for f in ("done", "accepted"):
             if f in updates:
                 setattr(t, f, updates[f])
+        # уведомляем автора о решении получателя
+        if "accepted" in updates and updates["accepted"] is not None:
+            try:
+                mail_notifier.notify_task_accepted(
+                    to_user=t.owner, title=t.title,
+                    accepted=bool(updates["accepted"]), by=name,
+                )
+            except Exception:
+                pass
     else:
         for f, v in updates.items():
             if f == "assignee":

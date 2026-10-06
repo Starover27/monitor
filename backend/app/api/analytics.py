@@ -83,6 +83,15 @@ def dashboard(days: int = Query(7, ge=1, le=90), user: User = Depends(get_curren
     news_read = db.query(func.count()).select_from(UserActivity).filter(UserActivity.event_type == "news_read", UserActivity.created_at >= since).scalar() or 0
     # Уникальных пользователей за период
     unique_users = db.query(func.count(func.distinct(UserActivity.user_id))).filter(UserActivity.created_at >= since).scalar() or 0
+    # Последние авторизации: кто и во сколько
+    recent_logins = (
+        db.query(UserActivity.created_at, User.full_name, User.username, User.department)
+        .join(User, User.id == UserActivity.user_id, isouter=True)
+        .filter(UserActivity.event_type == "login", UserActivity.created_at >= since)
+        .order_by(UserActivity.created_at.desc())
+        .limit(30)
+        .all()
+    )
 
     return {
         "days": days,
@@ -94,4 +103,13 @@ def dashboard(days: int = Query(7, ge=1, le=90), user: User = Depends(get_curren
         "news_created": news_created,
         "news_read": news_read,
         "unique_users": unique_users,
+        "recent_logins": [
+            {
+                "at": r[0].isoformat() if r[0] else None,
+                "full_name": r[1] or r[2] or "—",
+                "username": r[2],
+                "department": r[3] or "",
+            }
+            for r in recent_logins
+        ],
     }

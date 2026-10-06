@@ -51,7 +51,6 @@ export default function AdminPanel() {
       {tab === 'news' && <NewsTab />}
       {tab === 'ui' && <UITab />}
       {tab === 'settings' && <SettingsTab />}
-      {tab === 'agents' && <AgentsTab />}
     </div>
   );
 }
@@ -801,6 +800,23 @@ function SettingsTab() {
     loadSchedule();
   }, []);
 
+  // Загрузка настроек при открытии вкладки
+  useEffect(() => {
+    let alive = true;
+    authSend(`${API_BASE}/api/settings`, 'GET')
+      .then((s) => {
+        if (!alive) return;
+        setForm((f) => ({ ...f, ...s, SMTP_PASSWORD: '', LDAP_BIND_PASSWORD: '' }));
+        setLoaded(true);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setError(e.message);
+        setLoaded(true); // показываем форму даже при ошибке загрузки
+      });
+    return () => { alive = false; };
+  }, []);
+
   const setField = (k) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm((f) => ({ ...f, [k]: value }));
@@ -1113,6 +1129,83 @@ function SettingsTab() {
             {backupMsg.text}
           </p>
         )}
+
+        {/* Автоматическое расписание */}
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <h3 className="font-bold text-[#1f2937]">⏱ Автоматические копии по расписанию</h3>
+          {schedule && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-3 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[#e63a2e]"
+                  checked={schedule.BACKUP_SCHEDULE_ENABLED === 'true' || schedule.BACKUP_SCHEDULE_ENABLED === true}
+                  onChange={(e) => setSchedule((s) => ({ ...s, BACKUP_SCHEDULE_ENABLED: String(e.target.checked) }))}
+                />
+                Включить автоматические копии
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Расписание (cron, 5 полей)</span>
+                <input
+                  className={inputCls}
+                  placeholder="0 2 * * *  (ежедневно в 02:00)"
+                  value={schedule.BACKUP_SCHEDULE_CRON || ''}
+                  onChange={(e) => setSchedule((s) => ({ ...s, BACKUP_SCHEDULE_CRON: e.target.value }))}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Хранить копий</span>
+                <input
+                  type="number" min="1" max="100"
+                  className={inputCls}
+                  value={schedule.BACKUP_KEEP_COUNT || '5'}
+                  onChange={(e) => setSchedule((s) => ({ ...s, BACKUP_KEEP_COUNT: e.target.value }))}
+                />
+              </label>
+              <label className="flex items-center gap-3 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[#e63a2e]"
+                  checked={schedule.BACKUP_INCLUDE_ENV === 'true' || schedule.BACKUP_INCLUDE_ENV === true}
+                  onChange={(e) => setSchedule((s) => ({ ...s, BACKUP_INCLUDE_ENV: String(e.target.checked) }))}
+                />
+                Включать .env в автоматические копии
+              </label>
+            </div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              className="rounded-lg bg-[#2b3a4b] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1e293b] disabled:opacity-50"
+              onClick={saveSchedule}
+              disabled={scheduleBusy}
+            >
+              {scheduleBusy ? 'Сохранение…' : 'Сохранить расписание'}
+            </button>
+            <button
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              onClick={triggerBackup}
+              disabled={triggerBusy}
+            >
+              {triggerBusy ? 'Создание…' : '⚡ Сделать копию сейчас'}
+            </button>
+            {scheduleMsg && (
+              <span className={`text-sm ${scheduleMsg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{scheduleMsg.text}</span>
+            )}
+          </div>
+          {Array.isArray(files) && files.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Копии на сервере ({files.length})</p>
+              <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-xs text-slate-500">
+                {files.map((f) => (
+                  <li key={f.name} className="flex justify-between gap-3">
+                    <span className="truncate font-mono">{f.name}</span>
+                    <span className="shrink-0">{Math.round(f.size / 1024)} КБ · {new Date(f.mtime).toLocaleString('ru-RU')}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Сохранение */}

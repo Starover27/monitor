@@ -5,15 +5,16 @@
  * scope="absence" — отпуск, больничный, отгул, командировка + мои заявления
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFetch } from '../hooks/useFetch';
-import { authSend, getAuth } from '../lib/portal-auth';
+import { authSend, getAuth, trackEvent } from '../lib/portal-auth';
 import {
   PORTAL_KIND_LABELS, PORTAL_KIND_ICONS,
   PORTAL_STATUS_LABELS, PORTAL_STATUS_STYLES,
 } from '../lib/desk';
 import { API_BASE, formatDateTime } from '../lib/api';
-import { launchMedreg } from '../lib/medreg';
+
 
 // Настройки внешнего вида (загружаются один раз, применяются к hero-блоку)
 let _uiSettings = null;
@@ -105,6 +106,17 @@ export default function PortalHome({ scope = 'home' }) {
   );
   const newsQ = useFetch(`${API_BASE}/api/news`, { interval: 60000, headers: authHeaders });
   const newsItems = useMemo(() => (Array.isArray(newsQ.data) ? newsQ.data : []), [newsQ.data]);
+
+  // аналитика: новостные прочтения (один раз на новость за сессию)
+  const readTrackedRef = React.useRef(new Set());
+  React.useEffect(() => {
+    if (!scope || scope === 'absence' || scope === 'docs') return; // считаем только на главной
+    for (const n of newsItems.slice(0, 3)) {
+      if (readTrackedRef.current.has(n.id)) continue;
+      readTrackedRef.current.add(n.id);
+      trackEvent('news_read', '/portal', { news_id: n.id, title: n.title });
+    }
+  }, [newsItems, scope]);
 
   const myRequests = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const activeCount = useMemo(
@@ -225,12 +237,6 @@ export default function PortalHome({ scope = 'home' }) {
               <p className="text-xs text-slate-400">медицинская информационная система</p>
             </div>
           </div>
-          <button
-            onClick={launchMedreg}
-            className="portal-btn rounded-xl bg-[#e63a2e] px-5 py-2.5 text-sm font-bold text-white shadow-[0_6px_16px_-6px_rgba(230,58,46,0.6)] hover:bg-[#c9301f]"
-          >
-            ▶ Запустить МедРег
-          </button>
         </section>
       )}
 

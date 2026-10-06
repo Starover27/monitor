@@ -1,6 +1,7 @@
 """
 Helpdesk router — заявки: создание сотрудниками, обработка админами, трекер событий
 """
+import json
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -58,6 +59,16 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
         employee=ticket.employee_name, room=ticket.employee_room or "",
         description=ticket.description or "",
     )
+    # аналитика: создана заявка в IT (не ломаем создание, если авторизация отсутствует)
+    try:
+        from app.api.auth import get_current_user
+        from app.models import UserActivity
+        # заявки создаёт сам сотрудник без токена — пишем без user_id, но с мета-данными
+        db.add(UserActivity(user_id=None, event_type="ticket_created", path="/helpdesk",
+                            meta=json.dumps({"ticket_id": ticket.id, "employee": ticket.employee_name}, ensure_ascii=False)))
+        db.commit()
+    except Exception:
+        db.rollback()
     return ticket
 
 

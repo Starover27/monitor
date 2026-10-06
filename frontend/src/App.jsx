@@ -24,7 +24,7 @@ import PortalHome from './pages/PortalHome';
 import AdminPanel from './pages/AdminPanel';
 import AgentPage from './pages/AgentPage';
 import Assets from './pages/Assets';
-import Analytics from './pages/Analytics';
+import Scanner from './pages/Scanner';
 import { getAuth, useInactivityLogout, trackEvent } from './lib/portal-auth';
 import React from 'react';
 
@@ -87,6 +87,7 @@ export default function App() {
         <Route path="/monitor" element={<RequireAuth adminOnly><MonitorLayout><Dashboard /></MonitorLayout></RequireAuth>} />
         <Route path="/monitor/assets" element={<RequireAuth adminOnly><MonitorLayout><Assets /></MonitorLayout></RequireAuth>} />
         <Route path="/monitor/agent" element={<RequireAuth adminOnly><MonitorLayout><AgentPage /></MonitorLayout></RequireAuth>} />
+        <Route path="/monitor/scanner" element={<RequireAuth adminOnly><MonitorLayout><Scanner /></MonitorLayout></RequireAuth>} />
         <Route path="/service/:id" element={<RequireAuth adminOnly><MonitorLayout><ServiceDetailsPage /></MonitorLayout></RequireAuth>} />
         <Route path="/inventory" element={<RequireAuth adminOnly><MonitorLayout><Inventory /></MonitorLayout></RequireAuth>} />
         <Route path="/inventory/:hostId" element={<RequireAuth adminOnly><MonitorLayout><Inventory /></MonitorLayout></RequireAuth>} />

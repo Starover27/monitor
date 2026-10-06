@@ -41,7 +41,13 @@ export async function authFetch(url, options = {}) {
   const auth = getAuth();
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
-  const res = await fetch(url, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (e) {
+    // Сеть недоступна / сервер перезапускается: понятное сообщение вместо «Failed to fetch»
+    throw new Error('Нет связи с сервером — проверьте сеть или повторите позже');
+  }
   if (res.status === 401) {
     clearAuth();
     window.location.href = '/';

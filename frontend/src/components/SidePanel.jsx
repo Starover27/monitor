@@ -97,11 +97,15 @@ function CalendarWidget() {
 
   const isToday = (d) => d && toIso(d) === todayIso;
 
-  const loadTasks = async () => {
+  const loadTasks = async (background = false) => {
     try {
       const list = await authSend(`${API_BASE}/api/tasks`, 'GET');
       setTasks(list || []);
-    } catch (e) { setError(e.message); }
+      setError(null);
+    } catch (e) {
+      // фоновый опрос молчит, ошибка показывается только при явной перезагрузке
+      if (!background) setError(e.message);
+    }
   };
   const loadPeople = async () => {
     try { setPeople(await authSend(`${API_BASE}/api/tasks/users`, 'GET') || []); } catch { /* noop */ }
@@ -110,7 +114,7 @@ function CalendarWidget() {
   useEffect(() => {
     loadTasks();
     loadPeople();
-    const t = setInterval(loadTasks, 60000);
+    const t = setInterval(() => loadTasks(true), 60000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive_deps
   }, []);
@@ -197,6 +201,14 @@ function CalendarWidget() {
         ) : (
           <>
             <div className="flex items-start justify-between gap-2">
+              {/* Крупная кнопка принятия для получателя переадресованной задачи */}
+              {assignedToMe && t.accepted == null && !t.done && (
+                <div className="mb-2 flex w-full gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2">
+                  <span className="flex-1 text-xs font-semibold text-amber-800">Вам передана задача — взять в работу?</span>
+                  <button className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700" onClick={() => accept(t, true)}>✓ Взять</button>
+                  <button className="rounded-lg border border-rose-300 bg-white px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50" onClick={() => accept(t, false)}>Отклонить</button>
+                </div>
+              )}
               <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
                 <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#e63a2e]" checked={!!t.done} onChange={(e) => setDone(t, e.target.checked)} />
                 <span className="min-w-0">
@@ -217,6 +229,7 @@ function CalendarWidget() {
                     {t.forwarded && isMine && t.accepted == null && <span className="text-amber-600">ожидает ответа</span>}
                     {t.forwarded && isMine && t.accepted === true && <span className="text-emerald-600">принята</span>}
                     {t.forwarded && isMine && t.accepted === false && <span className="text-rose-600">отклонена</span>}
+                    {assignedToMe && t.accepted === true && !t.done && <span className="rounded bg-emerald-100 px-1 font-bold text-emerald-700">в работе</span>}
                     {assignedToMe && <span>от {t.owner}</span>}
                   </span>
                   {/* Переадресация задачами (всегда видна владельцу открытой задачи) */}
@@ -239,12 +252,6 @@ function CalendarWidget() {
                 </span>
               </label>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                {assignedToMe && t.accepted == null && !t.done && (
-                  <div className="flex gap-1">
-                    <button className="rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-600" title="Принять" onClick={() => accept(t, true)}>✓</button>
-                    <button className="rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-rose-600" title="Отклонить" onClick={() => accept(t, false)}>✗</button>
-                  </div>
-                )}
                 {isMine && !t.done && (
                   <button
                     className="rounded px-1 py-0.5 text-[10px] text-slate-300 hover:bg-slate-100 hover:text-slate-600"

@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/inventory', label: 'Клиенты' },
   { to: '/monitor/assets', label: 'Инвентаризация' },
   { to: '/alerts', label: 'Инциденты' },
+  { to: '/monitor/scanner', label: 'Сканер' },
   { to: '/monitor/agent', label: 'Агент' },
   { to: '/portal', label: 'Портал' },
 ];

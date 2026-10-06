@@ -113,14 +113,10 @@ function HostCard({ host, onOpen }) {
 
 export default function Inventory() {
   const { data, error, loading } = useFetch(`${API_BASE}/api/inventory`, { interval: 10000 });
-  const discovery = useFetch(`${API_BASE}/api/discovery`, { interval: 3000 });
   const navigate = useNavigate();
   const { hostId: routeHostId } = useParams();
   const [tab, setTab] = useState('certificates');
   const [folder, setFolder] = useState('');
-  const [ranges, setRanges] = useState(null);
-  const [scanEnabled, setScanEnabled] = useState(null);
-  const [scanMessage, setScanMessage] = useState('');
   const hosts = Array.isArray(data)
     ? [...data].sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
     : [];
@@ -182,7 +178,6 @@ export default function Inventory() {
         </div>
       )}
 
-      {host && <DiscoveryPanel data={discovery.data} ranges={ranges} setRanges={setRanges} enabled={scanEnabled} setEnabled={setScanEnabled} message={scanMessage} setMessage={setScanMessage} />}
       {host && (
         <div className="space-y-6">
           <div role="status" className={`text-sm ${stale ? 'text-amber-300' : 'text-slate-400'}`}>

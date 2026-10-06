@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.auth import require_admin
 from app.api.deps import get_db
 from app.core.config import settings
+from app.core.database import SessionLocal
 from app.services.discovery import DiscoveryConfig, scanner, targets
 
 router = APIRouter(prefix='/discovery', tags=['Discovery'])

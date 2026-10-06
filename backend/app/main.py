@@ -120,6 +120,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Базовые security-заголовки (защита от clickjacking, MIME-sniffing, XSS)
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
 # Подключаем все API роутеры под префиксом /api
 # В итоге эндпоинты будут: POST /api/heartbeat, GET /api/services, GET /api/history/{id}
 app.include_router(api_router, prefix=settings.API_PREFIX)
@@ -201,6 +212,8 @@ def seed_sections():
              "Телефоны сотрудников и кабинеты по корпусам с кнопкой звонка"),
             ("Заявки (админ)", "🗂", "/helpdesk/admin", 30, True, True,
              "Все заявки сотрудников: взять в работу, выполнить, комментировать"),
+            ("Аналитика", "📊", "/portal/analytics", 35, True, True,
+             "Кто и когда входил, новости, заявки, активность по разделам"),
             ("Админ-панель", "⚙️", "/portal/admin", 40, True, True,
              "Пользователи и права, разделы меню, новости, настройки домена и почты"),
             ("Мониторинг ИТ", "📡", "/monitor", 50, True, True,

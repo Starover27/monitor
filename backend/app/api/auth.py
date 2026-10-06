@@ -3,8 +3,9 @@ Auth router — вход по логину/паролю (доменная учё
 """
 import json
 import logging
+import time
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -13,6 +14,9 @@ from app.schemas import LoginRequest, LoginResponse, UserResponse
 from app.services.auth_service import (
     ldap_check_credentials, verify_local_password, create_token, verify_token,
 )
+
+# IP -> список времён попыток входа (для throttle). Память ограничена: чистим при каждом логине
+_login_attempts = {}
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -91,7 +95,17 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    # Простой throttle против перебора паролей: не более 20 попыток в минуту с одного IP
+    client_ip = (request.client.host if request.client else "?")
+    now = time.monotonic()
+    window = _login_attempts.get(client_ip, [])
+    window = [t for t in window if now - t < 60]
+    if len(window) >= 20:
+        raise HTTPException(429, "Слишком много попыток входа. Подождите минуту.")
+    window.append(now)
+    _login_attempts[client_ip] = window
+
     username = payload.username.strip()
     if not username or not payload.password:
         raise HTTPException(400, "Введите логин и пароль")

@@ -35,7 +35,10 @@ class MonitoringAgent:
         self.check_interval = self.config["check_interval"]
         self.service_map: Dict[str, int] = {}  # name -> service_id
         self.watchlist_map: Dict[str, int] = {}  # имя Windows-службы (watchlist) -> service_id
-        self.client = httpx.AsyncClient(timeout=self.config["backend"]["timeout"])
+        self.client = httpx.AsyncClient(
+            timeout=self.config["backend"]["timeout"],
+            proxies="http://",
+        )
 
     def _load_config(self) -> Dict:
         if not self.config_path.exists():

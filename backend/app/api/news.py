@@ -3,6 +3,7 @@ News router — новости клиники (лента на главной, �
 Картинки: POST /news/image (multipart) -> backend/static/news/, путь /static/news/...;
 статика раздаётся FastAPI (main.py: /static) и проксируется Vite.
 """
+import json
 import os
 import uuid
 
@@ -67,6 +68,14 @@ def create_news(payload: NewsCreate, admin=Depends(require_admin), db: Session =
     db.add(news)
     db.commit()
     db.refresh(news)
+    # аналитика: кто создал новость
+    try:
+        from app.models import UserActivity
+        db.add(UserActivity(user_id=admin.id, event_type="news_created", path="/portal",
+                            meta=json.dumps({"news_id": news.id, "title": news.title}, ensure_ascii=False)))
+        db.commit()
+    except Exception:
+        db.rollback()
     return news
 
 
