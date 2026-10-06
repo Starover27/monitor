@@ -80,15 +80,17 @@ D:\Projects\monitor/
 ## Key API Routes
 - `POST /api/auth/login` — JWT token
 - `POST /api/heartbeat` — agent check results
-- `POST /api/inventory` — agent snapshot
-- `GET /api/inventory` — list hosts
-- `POST /api/agent/ping` — minimal startup ping
-- `POST /api/agent/manual` — add agent manually (admin)
-- `POST /api/agent/build` — build agent zip (admin)
-- `GET/PUT /api/backup/schedule` — backup schedule
-- `POST /api/backup/trigger` — manual backup
-- `GET /api/analytics/dashboard` — analytics data
-- `POST /api/analytics/event` — track event
+- `POST /api/inventory` — agent snapshot (token auth)
+- `GET /api/inventory` — list hosts (public)
+- `POST /api/agent/ping` — minimal startup ping (token auth)
+- `POST /api/agent/manual` — add agent manually (admin JWT)
+- `POST /api/agent/build` — build agent zip (admin JWT)
+- `POST /api/discovery/admin-scan` — admin network scan (admin JWT)
+- `POST /api/discovery/scan` — agent-triggered scan (token auth)
+- `GET/PUT /api/backup/schedule` — backup schedule (admin)
+- `POST /api/backup/trigger` — manual backup (admin)
+- `GET /api/analytics/dashboard` — analytics data (admin JWT)
+- `POST /api/analytics/event` — track event (admin JWT)
 - `GET/POST /api/assets/categories` — asset CRUD
 - `GET/POST /api/assets/items` — asset items CRUD
 
@@ -100,21 +102,29 @@ D:\Projects\monitor/
 ## Frontend Routes
 - `/` — Login
 - `/portal` — Portal home (news, requests)
+- `/portal/analytics` — Analytics dashboard (light theme, admin only)
 - `/helpdesk` — Employee helpdesk
 - `/helpdesk/admin` — Admin helpdesk
 - `/phones` — Phone book
 - `/monitor` — Dashboard (host cards)
 - `/monitor/assets` — Asset accounting
-- `/monitor/agent` — Agent build page
-- `/monitor/analytics` — Analytics dashboard
+- `/monitor/agent` — Agent build + manual add + network scan
 - `/inventory` — Agent inventory list
 - `/inventory/:hostId` — Agent inventory detail
 - `/portal/admin` — Admin panel
 
 ## Important Patterns
+- Backend serves frontend SPA on port 80 (uvicorn `--port 80`, cwd `backend/`); rebuild frontend (`cd frontend && npm run build`) after UI changes
+- Agent build default backend URL = `http://<host>` (port 80, no explicit port)
 - Agent token = `settings.SECRET_KEY` (shared secret)
 - JWT tokens HMAC-signed, TTL = 30 min
 - `engine.dispose()` before DB file operations
 - Scheduler pauses during restore
-- Frontend uses `useFetch` with polling intervals
+- Frontend uses `useFetch` with polling intervals; pass `headers` for authenticated endpoints
 - Admin auth: `require_admin` dependency
+- Security: security headers middleware in `app/main.py` (X-Frame-Options DENY etc.); login throttle in `auth.py` (_login_attempts)
+- Backup schedule: PUT /api/backup/schedule re-registers APScheduler job `auto_backup` live (no restart)
+- Assets (Инвентаризация): categories «Связь/Терминалы/Техника», fields CRUD admin-only, items values inline-edit
+- Agent build defaults: net suite ping (Default-Gateway + DNS), interval 60s; ping latency chart in ServiceDetails (recharts, 24h)
+- Analytics: portal-only (`/portal/analytics`), admin-only, auth headers required in fetch
+- Discovery: admin-scan endpoint for manual network scans from Agent page; agent auto-responds on TCP 19443
