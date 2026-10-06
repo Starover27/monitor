@@ -25,6 +25,7 @@ import AdminPanel from './pages/AdminPanel';
 import AgentPage from './pages/AgentPage';
 import Assets from './pages/Assets';
 import Scanner from './pages/Scanner';
+import Analytics from './pages/Analytics';
 import { getAuth, useInactivityLogout, trackEvent } from './lib/portal-auth';
 import React from 'react';
 
