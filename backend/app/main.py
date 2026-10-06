@@ -129,7 +129,33 @@ async def security_headers(request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
+
+
+# Ограничение числа запросов по IP
+from app.core.rate_limit import RateLimitMiddleware  # noqa: E402
+app.add_middleware(RateLimitMiddleware, limit=120, window=60)
+
+
+# Ограничение размера запроса (защита от злонамеренных больших payload)
+@app.middleware("http")
+async def limit_request_size(request, call_next):
+    if request.method in ("POST", "PUT", "PATCH"):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 5 * 1024 * 1024:
+            return JSONResponse({"detail": "Тело запроса слишком большое (макс. 5 МБ)"}, status_code=413)
+    return await call_next(request)
+
+
+# Принудительный Content-Type для POST/PUT (защита от неожиданного формата)
+@app.middleware("http")
+async def enforce_content_type(request, call_next):
+    if request.method in ("POST", "PUT", "PATCH"):
+        ct = request.headers.get("content-type", "")
+        if ct and not ct.startswith(("application/json", "multipart/form-data", "application/x-www-form-urlencoded")):
+            return JSONResponse({"detail": "Недопустимый Content-Type"}, status_code=415)
+    return await call_next(request)
 
 # Подключаем все API роутеры под префиксом /api
 # В итоге эндпоинты будут: POST /api/heartbeat, GET /api/services, GET /api/history/{id}
