@@ -47,6 +47,12 @@ export default function AgentPage() {
   const [manualBusy, setManualBusy] = useState(false);
   const [manualMsg, setManualMsg] = useState(null);
 
+  // Сканирование сети
+  const [scanRanges, setScanRanges] = useState('192.168.1.0/24\n10.10.20.0/24');
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanMsg, setScanMsg] = useState(null);
+  const [scanStatus, setScanStatus] = useState(null);
+
   const lines = (s) => s.split('\n').map((v) => v.trim()).filter(Boolean);
 
   const updService = (i, field, value) =>
@@ -148,6 +154,60 @@ export default function AgentPage() {
     }
   };
 
+  const runScan = async () => {
+    setScanBusy(true);
+    setScanMsg(null);
+    setScanStatus(null);
+    try {
+      const ranges = scanRanges.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!ranges.length) throw new Error('Укажите хотя бы один диапазон');
+      const res = await authFetch(`${API_BASE}/api/discovery/admin-scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ranges }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.detail || `HTTP ${res.status}`);
+      setScanMsg({ ok: true, text: `Сканирование запущено: ${ranges.length} диапазон(ов)` });
+      pollScanStatus();
+    } catch (e) {
+      setScanMsg({ ok: false, text: `Ошибка: ${e.message}` });
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  const pollScanStatus = async () => {
+    const tick = async () => {
+      try {
+        const s = await authFetch(`${API_BASE}/api/discovery`);
+        setScanStatus(typeof s === 'object' ? s : null);
+        if (s && s.running) {
+          setTimeout(tick, 1000);
+        }
+      } catch {
+        setTimeout(tick, 2000);
+      }
+    };
+    tick();
+  };
+
+  const addFoundAgent = async (item) => {
+    try {
+      const addresses = [item.ip];
+      const res = await authFetch(`${API_BASE}/api/agent/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_id: item.host_id, hostname: item.hostname, addresses }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.detail || `HTTP ${res.status}`);
+      setScanMsg({ ok: true, text: `Добавлен: ${item.hostname} (${item.ip})` });
+    } catch (e) {
+      setScanMsg({ ok: false, text: `Ошибка добавления ${item.hostname}: ${e.message}` });
+    }
+  };
+
   return (
     <div className="animate-fade-in mx-auto max-w-4xl space-y-6">
       {/* Заголовок */}
@@ -159,11 +219,80 @@ export default function AgentPage() {
               Агенты
             </h1>
             <p className="mt-2 max-w-xl text-sm text-slate-400">
-              Ручное добавление хоста в «Клиенты» и сборка пакета агента мониторинга.
+              Сканирование сети, ручное добавление хостов и сборка пакета агента мониторинга.
             </p>
           </div>
         </div>
       </div>
+
+      {/* Сканирование сети */}
+      <section className="card space-y-4 p-6">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-cyan-300">Сканирование сети</h2>
+        <p className="text-sm text-slate-400">
+          Укажите диапазоны IPv4 (частные сети 10/8, 172.16/12, 192.168/16). Можно несколько строк: CIDR <code className="text-cyan-300">192.168.1.0/24</code> или диапазон <code className="text-cyan-300">192.168.1.10-192.168.1.40</code>.
+        </p>
+        <label className="block">
+          <span className={LABEL_CLS}>Диапазоны для сканирования (по одному в строке)</span>
+          <textarea
+            className={INPUT_CLS}
+            rows={3}
+            value={scanRanges}
+            onChange={(e) => setScanRanges(e.target.value)}
+            placeholder={'192.168.1.0/24\n10.10.20.0/24\n192.168.1.10-192.168.1.40'}
+          />
+        </label>
+        <div className="flex items-center gap-3">
+          <button onClick={runScan} disabled={scanBusy} className="monitor-button">
+            {scanBusy ? 'Сканирую…' : '🔍 Сканировать'}
+          </button>
+          {scanMsg && <span className={`text-sm ${scanMsg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{scanMsg.text}</span>}
+        </div>
+        {scanStatus && (
+          <div className="mt-3 space-y-2">
+            {scanStatus.running && (
+              <div>
+                <div className="mb-1 flex justify-between text-xs text-slate-500">
+                  <span>Проверено: {scanStatus.checked || 0} / {scanStatus.total || 0}</span>
+                  <span>{scanStatus.total ? Math.round(((scanStatus.checked || 0) / scanStatus.total) * 100) : 0}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-cyan-400 transition-all duration-500"
+                    style={{ width: `${scanStatus.total ? ((scanStatus.checked || 0) / scanStatus.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {(scanStatus.results || []).length > 0 && (
+              <div className="mt-3">
+                <p className="mb-2 text-sm font-semibold text-slate-300">Найдены агенты:</p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(scanStatus.results || []).map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm">
+                      <div className="min-w-0">
+                        <span className="font-medium text-emerald-300">{item.hostname}</span>
+                        <span className="ml-2 text-slate-500">{item.ip}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addFoundAgent(item)}
+                        className="shrink-0 rounded-lg bg-cyan-500/20 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30"
+                      >
+                        ＋ В клиенты
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {scanStatus.finished_at && (
+              <p className="text-xs text-slate-500">
+                Завершено: {new Date(scanStatus.finished_at).toLocaleString('ru-RU')}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Ручное добавление агента */}
       <section className="card space-y-4 p-6">
