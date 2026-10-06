@@ -69,7 +69,7 @@ class Settings(BaseSettings):
 
 
     # CORS
-    ALLOWED_ORIGINS: list = ["http://localhost:3000", "http://localhost:5173", "http://localhost"]
+    ALLOWED_ORIGINS: list = ["*"]
     
     class Config:
         env_file = ".env"
