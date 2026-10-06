@@ -13,17 +13,25 @@ backend:
 # --- Периодичность ---
 check_interval: 30                      # проверять сервисы каждые N секунд
 
-# --- Инвентаризация Windows-хоста ---
+# --- Инвентаризация хоста ---
 # Клиент сам собирает данные локально и отправляет только метаданные.
+# Для Windows используются certificate_roots и windows_services.
+# Для Linux можно использовать certificate_roots (пути к PEM-файлам/каталогам)
+# и, при необходимости, расширить inventory.py под свои нужды.
 inventory:
   enabled: true
   host_id: "office-pc-01"
   # Укажите один или несколько каталогов; подпапки сканируются автоматически.
+  # Windows:
   certificate_roots:
     - "C:\\Certificates"
   windows_services:
     - "Spooler"
     - "W32Time"
+  # Linux (пример):
+  # certificate_roots:
+  #   - "/etc/ssl/certs"
+  #   - "/usr/local/share/ca-certificates"
 discovery:
   enabled: true
   port: 19443
@@ -88,11 +96,28 @@ services:
     port: 5432
     description: "PostgreSQL Database"
 
+  # Системные метрики (psutil, работает на Windows и Linux):
+  # - disk:   свободное место на диске
+  # - cpu:    загрузка процессора (%)
+  # - memory: использование оперативной памяти (%)
+  # - network: суммарный сетевой трафик (Mbps за интервал)
+  #
+  # Для Linux путь к диску укажите явно, например "/" или "/home".
+  # Для Windows используйте "C:\\", "D:\\" и т.д.
+  # Если path не указан, агент сам подставит "/" на Linux и "C:\\" на Windows.
+
   - name: "LocalHost-Disk-C"
     type: "disk"
     path: "C:\\"
     threshold: 10
-    description: "Диск C: свободное место"
+    description: "Диск C: свободное место (Windows)"
+
+  # Пример для Linux:
+  # - name: "LocalHost-Disk-Root"
+  #   type: "disk"
+  #   path: "/"
+  #   threshold: 10
+  #   description: "Корневой раздел свободное место (Linux)"
 
   - name: "LocalHost-CPU"
     type: "cpu"
