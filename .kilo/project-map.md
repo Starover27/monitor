@@ -125,7 +125,7 @@ D:\Projects\monitor/
 - Admin auth: `require_admin` dependency
 - Security: security headers middleware in `app/main.py` (X-Frame-Options DENY etc.); login throttle in `auth.py` (_login_attempts)
 - Backup schedule: PUT /api/backup/schedule re-registers APScheduler job `auto_backup` live (no restart)
-- Assets (Инвентаризация): categories «Связь/Терминалы/Техника», fields CRUD admin-only, items values inline-edit
+- Assets (Инвентаризация): categories «Связь/Терминалы/Техника», fields CRUD admin-only via `+ Поле` button, items values inline-edit; category rename requires direct DB update if already seeded
 - Agent build defaults: net suite ping (Default-Gateway + DNS), interval 60s; ping latency chart in ServiceDetails (recharts, 24h)
 - Analytics: portal-only (`/portal/analytics`), admin-only, auth headers required in fetch
 - Discovery: admin-scan endpoint for manual network scans from Agent page; agent auto-responds on TCP 19443
