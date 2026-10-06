@@ -2,10 +2,11 @@
  * Dashboard — главная страница: карточки хостов (имя + IP).
  * Клик по карточке открывает страницу клиента с сертификатами, дисками, службами и временем.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFetch } from '../hooks/useFetch';
 import { API_BASE, formatRelativeTime } from '../lib/api';
+import { getAuth } from '../lib/portal-auth';
 
 const ONLINE_MS = 120000; // свежесть снимка инвентаризации
 
@@ -55,12 +56,44 @@ function HostCard({ host, onOpen }) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { data: hosts, error, loading, lastUpdated } = useFetch(`${API_BASE}/api/inventory`, { interval: 10000 });
+  const { data: hosts, error, loading, lastUpdated, refetch } = useFetch(`${API_BASE}/api/inventory`, { interval: 10000 });
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualForm, setManualForm] = useState({ host_id: '', hostname: '', addresses: '' });
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualMsg, setManualMsg] = useState(null);
   const list = useMemo(
     () => (Array.isArray(hosts) ? [...hosts].sort((a, b) => new Date(b.received_at) - new Date(a.received_at)) : []),
     [hosts],
   );
   const online = list.filter((h) => Date.now() - new Date(h.received_at).getTime() <= ONLINE_MS).length;
+
+  const addManualAgent = async () => {
+    setManualBusy(true);
+    setManualMsg(null);
+    try {
+      const addresses = manualForm.addresses.split(',').map((s) => s.trim()).filter(Boolean);
+      if (!manualForm.host_id.trim() || !manualForm.hostname.trim()) throw new Error('Укажите Host ID и имя хоста');
+      const res = await fetch(`${API_BASE}/api/agent/manual`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuth()?.token || ''}`,
+        },
+        body: JSON.stringify({ host_id: manualForm.host_id.trim(), hostname: manualForm.hostname.trim(), addresses }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `HTTP ${res.status}`);
+      }
+      setManualMsg({ ok: true, text: `Хост «${manualForm.hostname}» добавлен в Клиенты.` });
+      setManualForm({ host_id: '', hostname: '', addresses: '' });
+      refetch();
+    } catch (e) {
+      setManualMsg({ ok: false, text: `Ошибка: ${e.message}` });
+    } finally {
+      setManualBusy(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -73,7 +106,51 @@ export default function Dashboard() {
             {lastUpdated && ` · обновлено ${formatRelativeTime(new Date(lastUpdated).toISOString())}`}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => { setManualOpen((v) => !v); setManualMsg(null); }}
+            className="monitor-button"
+          >
+            + Добавить агента вручную
+          </button>
+        </div>
       </div>
+
+      {manualOpen && (
+        <div className="card space-y-3 p-5">
+          <p className="text-sm text-slate-400">
+            Создаёт карточку в «Клиентах». Как только на этот хост поставят агент — данные начнут обновляться автоматически.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <input
+              className="monitor-input"
+              placeholder="Host ID * (например office-pc-01)"
+              value={manualForm.host_id}
+              onChange={(e) => setManualForm((f) => ({ ...f, host_id: e.target.value }))}
+            />
+            <input
+              className="monitor-input"
+              placeholder="Имя хоста * (например KAB-101)"
+              value={manualForm.hostname}
+              onChange={(e) => setManualForm((f) => ({ ...f, hostname: e.target.value }))}
+            />
+            <input
+              className="monitor-input"
+              placeholder="IP через запятую (необязательно)"
+              value={manualForm.addresses}
+              onChange={(e) => setManualForm((f) => ({ ...f, addresses: e.target.value }))}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={addManualAgent} disabled={manualBusy} className="monitor-button">
+              {manualBusy ? 'Добавляю…' : '＋ Добавить в клиенты'}
+            </button>
+            {manualMsg && (
+              <span className={`text-sm ${manualMsg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{manualMsg.text}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div role="alert" className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-300">

@@ -5,7 +5,7 @@
  * Кнопка «Собрать build» скачивает zip: если собран agent/dist/MonitorClient.exe —
  * готовый exe (Python на целевом ПК не нужен), иначе исходники + скрипты.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { authFetch, getAuth } from '../lib/portal-auth';
 import { API_BASE } from '../lib/api';
 
@@ -17,16 +17,20 @@ const EMPTY_SERVICE = { name: '', type: 'tcp', host: '', port: 80, url: '', desc
 
 export default function AgentPage() {
   const [backendUrl, setBackendUrl] = useState(
-    `${window.location.protocol}//${window.location.hostname}:8000`,
+    `${window.location.protocol}//${window.location.hostname}`,
   );
   const [hostId, setHostId] = useState('');
-  const [interval, setIntervalSec] = useState(30);
+  const [interval, setIntervalSec] = useState(60);
   const [timeout, setTimeoutSec] = useState(5);
   const [inventory, setInventory] = useState(true);
   const [discovery, setDiscovery] = useState(true);
   const [certRoots, setCertRoots] = useState('C:\\Certificates');
-  const [winServices, setWinServices] = useState('Spooler\nW32Time');
-  const [services, setServices] = useState([]);
+  const [winServices, setWinServices] = useState('Dnscache\nLanmanWorkstation\nW32Time');
+  // Стандартный набор сетевых проверок (шлюз + DNS, ping) — включён по умолчанию
+  const [netSuite, setNetSuite] = useState(true);
+  const [netGateway, setNetGateway] = useState('192.168.88.1');
+  const [netDns, setNetDns] = useState('8.8.8.8');
+  const [services, setServices] = useState(null); // null = ещё не инициализирован
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
@@ -55,6 +59,37 @@ export default function AgentPage() {
 
   const lines = (s) => s.split('\n').map((v) => v.trim()).filter(Boolean);
 
+  // Сформировать стандартные сетевые проверки (объекты конфига)
+  const netSuiteServices = () => [
+    { name: 'Default-Gateway', type: 'icmp', host: netGateway.trim(), port: '', url: '', description: 'Основной шлюз (ping, задержка)', expected_status: 200, expected_body: '', count: 2, threshold: '', interval: 1 },
+    { name: 'DNS', type: 'icmp', host: netDns.trim(), port: '', url: '', description: 'DNS (ping, задержка)', expected_status: 200, expected_body: '', count: 2, threshold: '', interval: 1 },
+  ];
+
+  // При первом рендере: если стандартный набор включён и список пуст — наполнить
+  useEffect(() => {
+    if (netSuite && services === null) setServices(netSuiteServices());
+    else if (services === null) setServices([]);
+    // eslint-disable-next-line react-hooks/exhaustive_deps
+  }, []);
+
+  // Переключение стандартного набора
+  const toggleNetSuite = (on) => {
+    setNetSuite(on);
+    setServices((list) => {
+      const base = (list || []).filter((s) => !['Default-Gateway', 'DNS'].includes(s.name));
+      return on ? [...netSuiteServices(), ...base] : base;
+    });
+  };
+
+  // Обновление шлюза/DNS в уже созданных записях
+  useEffect(() => {
+    if (!netSuite) return;
+    setServices((list) => (list || []).map((s) =>
+      s.name === 'Default-Gateway' ? { ...s, host: netGateway.trim() } : s.name === 'DNS' ? { ...s, host: netDns.trim() } : s,
+    ));
+    // eslint-disable-next-line react-hooks/exhaustive_deps
+  }, [netGateway, netDns]);
+
   const updService = (i, field, value) =>
     setServices((list) => list.map((s, j) => (j === i ? { ...s, [field]: value } : s)));
 
@@ -80,7 +115,7 @@ export default function AgentPage() {
         retry_delay: Number(retryDelay) || 5,
         buffer_max: Number(bufferMax) || 500,
         discovery_port: Number(discoveryPort) || 19443,
-        services: services
+        services: (services || [])
           .filter((s) => s.name.trim())
           .map((s) => ({
             name: s.name.trim(),
@@ -436,9 +471,31 @@ export default function AgentPage() {
       <section className="card p-6">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wide text-cyan-300">Проверяемые сервисы</h2>
-          <button type="button" onClick={() => setServices((l) => [...l, { ...EMPTY_SERVICE }])} className="monitor-button !px-3 !py-1.5 text-xs">
+          <button type="button" onClick={() => setServices((l) => [...(l || []), { ...EMPTY_SERVICE }])} className="monitor-button !px-3 !py-1.5 text-xs">
             + Добавить
           </button>
+        </div>
+        {/* Стандартные сетевые проверки (по умолчанию включены) */}
+        <div className="mb-4 rounded-xl border border-cyber-border bg-slate-900/40 p-4">
+          <label className="flex items-start gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={netSuite} onChange={(e) => toggleNetSuite(e.target.checked)} className="mt-1 h-4 w-4 accent-cyan-400" />
+            <span>
+              <b className="text-slate-200">Стандартные сетевые проверки (ping)</b>
+              <span className="mt-0.5 block text-slate-500">Шлюз и DNS пингуются каждые {interval} сек — на сервере строится график задержек и доступности.</span>
+            </span>
+          </label>
+          {netSuite && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className={LABEL_CLS}>Основной шлюз (ping)</span>
+                <input className={INPUT_CLS} value={netGateway} onChange={(e) => setNetGateway(e.target.value)} placeholder="192.168.88.1" />
+              </label>
+              <label className="block">
+                <span className={LABEL_CLS}>DNS-сервер (ping)</span>
+                <input className={INPUT_CLS} value={netDns} onChange={(e) => setNetDns(e.target.value)} placeholder="8.8.8.8" />
+              </label>
+            </div>
+          )}
         </div>
         <p className="mb-4 text-xs leading-relaxed text-slate-500">
           Это список проверок, которые агент выполняет за сервер: <b className="text-slate-400">tcp</b> — живой ли порт
@@ -447,13 +504,13 @@ export default function AgentPage() {
           со статусом UP/DOWN и историей. Плюс локальные метрики (CPU, диск, память) и службы Windows из поля
           «Службы Windows для контроля» выше.
         </p>
-        {services.length === 0 && (
+        {services?.length === 0 && (
           <p className="text-sm text-slate-500">
             Список пуст — агент будет проверять только локальные метрики (CPU, память, диск при включённой инвентаризации). Токен и адрес сервера уже встроены в сборку.
           </p>
         )}
         <div className="space-y-3">
-          {services.map((s, i) => {
+          {(services || []).map((s, i) => {
             const isHttp = s.type === 'http' || s.type === 'https';
             const isIcmp = s.type === 'icmp';
             const isMetric = ['disk', 'cpu', 'memory', 'network'].includes(s.type);

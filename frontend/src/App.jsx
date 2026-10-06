@@ -8,7 +8,7 @@
  *   "/phones"         -> PhoneBook (книга номеров)
  * Мониторинг (тёмная тема) — только для администраторов ИТ: "/monitor".
  */
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import PortalLayout from './components/PortalLayout';
 import Dashboard from './pages/Dashboard';
@@ -25,7 +25,22 @@ import AdminPanel from './pages/AdminPanel';
 import AgentPage from './pages/AgentPage';
 import Assets from './pages/Assets';
 import Analytics from './pages/Analytics';
-import { getAuth, useInactivityLogout } from './lib/portal-auth';
+import { getAuth, useInactivityLogout, trackEvent } from './lib/portal-auth';
+import React from 'react';
+
+/** Трекинг просмотров страниц для аналитики (не мешает рендеру) */
+function PageTracker() {
+  const location = useLocation();
+  const lastRef = React.useRef(null);
+  React.useEffect(() => {
+    const path = location.pathname;
+    if (lastRef.current === path) return;
+    lastRef.current = path;
+    if (path === '/') return; // страницу входа не считаем
+    trackEvent('page_view', path);
+  }, [location]);
+  return null;
+}
 
 function RequireAuth({ children, adminOnly = false, path = null }) {
   const auth = getAuth();
@@ -54,6 +69,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <PageTracker />
       <Routes>
         {/* Вход */}
         <Route path="/" element={<Login />} />
@@ -78,7 +94,8 @@ export default function App() {
 
         {/* Админ-панель портала */}
         <Route path="/portal/admin" element={<RequireAuth adminOnly><PortalLayout><AdminPanel /></PortalLayout></RequireAuth>} />
-        <Route path="/monitor/analytics" element={<RequireAuth adminOnly><MonitorLayout><Analytics /></MonitorLayout></RequireAuth>} />
+        {/* Аналитика — раздел портала (светлая зона, только для админов) */}
+        <Route path="/portal/analytics" element={<RequireAuth adminOnly><PortalLayout><Analytics /></PortalLayout></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   );
