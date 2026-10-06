@@ -2,11 +2,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'remove-crossorigin',
+      transformIndexHtml(html) {
+        return html.replace(/\s*crossorigin/g, '');
+      }
+    }
+  ],
   server: {
     port: 5173,
     proxy: {
-      // Проксируем запросы к бэкенду FastAPI, чтобы избежать CORS в dev
       '/api': {
         target: 'http://localhost:80',
         changeOrigin: true,
@@ -18,8 +25,7 @@ export default defineConfig({
     },
   },
   build: {
-    // Разделяем чанки: vendor обновляется редко — браузер кэширует его
-    // между релизами портала, а код приложения грузится быстро.
+    modulePreload: false,
     rollupOptions: {
       output: {
         manualChunks: {
