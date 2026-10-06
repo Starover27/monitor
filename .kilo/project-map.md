@@ -128,3 +128,6 @@ D:\Projects\monitor/
 - Agent build defaults: net suite ping (Default-Gateway + DNS), interval 60s; ping latency chart in ServiceDetails (recharts, 24h)
 - Analytics: portal-only (`/portal/analytics`), admin-only, auth headers required in fetch
 - Discovery: admin-scan endpoint for manual network scans from Agent page; agent auto-responds on TCP 19443
+- Agent startup: `_send_ping()` uses psutil with fallback to `socket.getaddrinfo`; `_send_inventory()` retries 3x
+- Agent Windows service: `service_windows.py` wraps `MonitoringAgent.run()`; logs to `agent-service.log`
+- Agent config: `backend.url` must point to server (port 80), `backend.token` must equal server `SECRET_KEY`

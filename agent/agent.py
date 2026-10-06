@@ -253,12 +253,22 @@ class MonitoringAgent:
             hostname = socket.gethostname()
         except Exception:
             hostname = "unknown"
-        addresses = sorted({
-            addr.address.split("%")[0]
-            for entries in __import__("psutil").net_if_addrs().values()
-            for addr in entries
-            if addr.family in (socket.AF_INET, socket.AF_INET6)
-        })[:64]
+
+        addresses = []
+        try:
+            psutil = __import__("psutil")
+            addresses = sorted({
+                addr.address.split("%")[0]
+                for entries in psutil.net_if_addrs().values()
+                for addr in entries
+                if addr.family in (socket.AF_INET, socket.AF_INET6)
+            })[:64]
+        except (ModuleNotFoundError, Exception):
+            try:
+                addresses = [socket.gethostbyname(hostname)]
+            except Exception:
+                pass
+
         payload = {
             "host_id": self.config.get("inventory", {}).get("host_id") or hostname,
             "hostname": hostname,
@@ -340,20 +350,25 @@ class MonitoringAgent:
 
         self.logger.info(f"Зарегистрировано: {len(self.service_map)} | Интервал: {self.check_interval}s")
 
-        # Немедленный ping: создаёт карточку хоста в дашборде до полной инвентаризации
-        try:
-            await self._send_ping()
-            self.logger.info("✓ Startup ping отправлен")
-        except Exception:
-            self.logger.exception("Не удалось отправить startup ping")
-
-        # Сразу отправляем инвентаризацию, чтобы хост появился в дашборде без ожидания check_interval
-        if self.config.get("inventory", {}).get("enabled"):
+        # Немедленный ping + инвентаризация с повторами: служба может стартовать
+        # раньше сети — без повторов карточка в «Клиентах» не появилась бы.
+        for attempt in range(1, 4):
             try:
-                await self._send_inventory()
-                self.logger.info("✓ Стартовая инвентаризация отправлена")
-            except Exception:
-                self.logger.exception("Не удалось отправить стартовую инвентаризацию")
+                await self._send_ping()
+                self.logger.info("✓ Startup ping отправлен")
+                break
+            except Exception as e:
+                self.logger.warning(f"Попытка {attempt}/3 ping не удалась: {e}")
+                await asyncio.sleep(5 * attempt)
+        if self.config.get("inventory", {}).get("enabled"):
+            for attempt in range(1, 4):
+                try:
+                    await self._send_inventory()
+                    self.logger.info("✓ Стартовая инвентаризация отправлена")
+                    break
+                except Exception as e:
+                    self.logger.warning(f"Попытка {attempt}/3 инвентаризации не удалась: {e}")
+                    await asyncio.sleep(5 * attempt)
 
         try:
             while True:
